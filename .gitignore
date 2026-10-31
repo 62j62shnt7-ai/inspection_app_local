@@ -1,0 +1,9 @@
+# Local operational data and original inspection records
+/data/
+/reference/*.xlsx
+# Bundled platform interpreters remain local and are not source code
+/runtime/
+# Generated files
+__pycache__/
+*.py[cod]
+.DS_Store

@@ -56,3 +56,78 @@ class HttpInProcessTests(unittest.TestCase):
         status, data=self.request('GET','/api/export')
         self.assertEqual(status,200)
         self.assertTrue(data.startswith(b'PK'))
+
+    def test_yearly_excel_preserves_filtered_rows_and_literal_asset_names(self):
+        import io, re, openpyxl
+        _, page = self.request('GET', '/')
+        token = re.search(rb'name="app-token" content="([^"]+)"', page).group(1).decode()
+        body = json.dumps({'rows': [['2027-03', '=Asset', 'OSI', 'GP Piping']]}).encode()
+        status, data = self.request('POST', '/api/yearly-export', body, {'X-App-Token': token, 'Content-Type': 'application/json'})
+        self.assertEqual(status, 200)
+        book = openpyxl.load_workbook(io.BytesIO(data), data_only=False)
+        sheet = book.active
+        self.assertEqual([cell.value for cell in sheet[2]], ['2027-03', '=Asset', 'OSI', 'GP Piping'])
+        self.assertEqual(sheet['B2'].data_type, 's')
+
+    def test_clear_requires_confirmation_and_creates_restorable_backup(self):
+        import re, sqlite3
+        asset = self.store.save_asset(None, {'name': 'Keep safe', 'family': 'Flowline'}, None)
+        _, page = self.request('GET', '/')
+        token = re.search(rb'name="app-token" content="([^"]+)"', page).group(1).decode()
+        headers = {'X-App-Token': token, 'Content-Type': 'application/json'}
+        self.assertEqual(self.request('POST', '/api/clear', b'{}', headers)[0], 400)
+        status, data = self.request('POST', '/api/clear', b'{"confirmation":"CLEAR"}', headers)
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(self.request('GET', '/api/assets')[1]), [])
+        with sqlite3.connect(json.loads(data)['backup']) as conn:
+            self.assertEqual(conn.execute('SELECT name FROM assets WHERE id=?', (asset['id'],)).fetchone()[0], 'Keep safe')
+
+    def test_list_and_restore_saved_backups_rejects_traversal(self):
+        import re
+        from inspection_app.backups import create_backup
+        asset = self.store.save_asset(None, {'name': 'Original', 'family': 'Flowline'}, None)
+        backup = create_backup(self.store)
+        self.store.save_asset(asset['id'], {'name': 'Changed'}, asset['version'])
+        _, page = self.request('GET', '/')
+        token = re.search(rb'name="app-token" content="([^"]+)"', page).group(1).decode()
+        headers = {'X-App-Token': token, 'Content-Type': 'application/json'}
+        status, body = self.request('GET', '/api/backups')
+        self.assertEqual(status, 200)
+        self.assertIn(backup.name, [row['filename'] for row in json.loads(body)])
+        self.assertEqual(self.request('POST', '/api/backups/restore', json.dumps({'filename':'../plan.db'}).encode(), headers)[0], 400)
+        status, body = self.request('POST', '/api/backups/restore', json.dumps({'filename':backup.name}).encode(), headers)
+        self.assertEqual(status, 200)
+        self.assertEqual(self.store.get_asset(asset['id'])['name'], 'Original')
+        self.assertTrue(Path(json.loads(body)['safety_backup']).exists())
+
+    def test_reconciliation_preview_does_not_modify_master(self):
+        import io, re
+        from openpyxl import Workbook
+        asset = self.store.save_asset(None, {'name':'Vessel', 'family':'Vessel', 'asset_number_original':'V-1'}, None)
+        book = Workbook(); sheet = book.active; sheet.title = 'Full Inspection Plan'
+        sheet.append(['Plan']); sheet.append(['Category','Package# or Asset#','Item','Planned Insp Date','Next Inspection Category'])
+        sheet.append(['Vessel','V-1','Vessel','2026-03','OSI'])
+        stream = io.BytesIO(); book.save(stream)
+        _, page = self.request('GET', '/')
+        token = re.search(rb'name="app-token" content="([^"]+)"', page).group(1).decode()
+        status, body = self.request('POST', '/api/reconciliation/preview', stream.getvalue(), {'X-App-Token':token})
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(body)['rows'][0]['candidates'][0]['id'], asset['id'])
+        self.assertEqual(self.store.get_asset(asset['id']), asset)
+
+    def test_reconciliation_apply_requires_token_and_checks_version(self):
+        import re
+        asset = self.store.save_asset(None, {'name':'Vessel','family':'Vessel','inspections':[{'inspection_type':'OSI','applicable':'Yes'}]}, None)
+        _, page = self.request('GET', '/')
+        token = re.search(rb'name="app-token" content="([^"]+)"', page).group(1).decode()
+        payload = json.dumps({'updates':[{'asset_id':asset['id'],'version':asset['version'],'inspection_type':'OSI','fields':{'next_inspection_month':'2027-03'}}]}).encode()
+        self.assertEqual(self.request('POST','/api/reconciliation/apply',payload)[0],403)
+        headers = {'X-App-Token':token,'Content-Type':'application/json'}
+        self.assertEqual(self.request('POST','/api/reconciliation/apply',payload,headers)[0],200)
+        self.assertEqual(self.store.get_asset(asset['id'])['inspections'][0]['next_inspection_month'],'2027-03')
+        self.assertEqual(self.request('POST','/api/reconciliation/apply',payload,headers)[0],400)
+
+    def test_reconciliation_script_is_served_as_javascript(self):
+        status, data = self.request('GET', '/reconciliation.js')
+        self.assertEqual(status, 200)
+        self.assertIn(b'recon-import', data)

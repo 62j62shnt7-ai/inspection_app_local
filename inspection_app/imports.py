@@ -59,18 +59,40 @@ def preview_import(store, path):
         if any(row.get('asset_id') and row.get('asset_id') not in existing for row in data[name]):
             errors.append(name + ' references an unknown asset')
     with closing(sqlite3.connect(store.db_path)) as conn, conn:
-        old_ids = {r[0] for r in conn.execute('SELECT id FROM assets')}
+        old_rows = {r[0]: r for r in conn.execute('SELECT id,name,family,details FROM assets')}
+        old_ids = set(old_rows)
+    incoming_inspections = defaultdict(dict)
+    for row in data['Inspection Plan']:
+        incoming_inspections[row.get('asset_id')][row.get('inspection_type')] = row
+    comparison = []
+    for asset in data['Assets']:
+        asset_id = asset.get('asset_id')
+        if asset_id not in old_rows:
+            comparison.append({'id': asset_id, 'name': asset.get('asset_description') or '(unnamed asset)', 'status': 'new', 'changes': []})
+            continue
+        _, name, family, raw = old_rows[asset_id]
+        details = json.loads(raw)
+        pairs = [('Asset name', name, asset.get('asset_description') or '(unnamed asset)'), ('Family', family, asset.get('asset_family') or 'Unknown')]
+        old_inspections = {row.get('inspection_type'): row for row in details.get('inspections', [])}
+        for kind in ('OSI', 'Internal'):
+            before, after = old_inspections.get(kind, {}), incoming_inspections[asset_id].get(kind, {})
+            for label, key in [('Applicable', 'applicable'), ('Last month', 'last_inspection_month'), ('Next month', 'next_inspection_month')]:
+                pairs.append((kind + ' ' + label, before.get(key), after.get(key)))
+        changes = [{'field': label, 'current': str(old or ''), 'incoming': str(new or '')} for label, old, new in pairs if (old or '') != (new or '')]
+        comparison.append({'id': asset_id, 'name': name, 'status': 'changed' if changes else 'matching', 'changes': changes})
     token = secrets.token_urlsafe(24)
     if not hasattr(store, '_previews'): store._previews = {}
     digest = hashlib.sha256(path.read_bytes()).hexdigest()
     store._previews[token] = {'data': data, 'revision': _revision(store), 'digest': digest, 'errors': errors}
-    return {'token': token, 'digest': digest, 'counts': {k:len(v) for k,v in data.items()}, 'additions':len(existing-old_ids), 'updates':len(existing & old_ids), 'retained':len(old_ids-existing), 'errors':list(dict.fromkeys(errors))}
+    return {'token': token, 'digest': digest, 'counts': {k:len(v) for k,v in data.items()}, 'additions':len(existing-old_ids), 'updates':len(existing & old_ids), 'retained':len(old_ids-existing), 'errors':list(dict.fromkeys(errors)), 'comparison':comparison}
 
-def apply_import(store, token):
+def apply_import(store, token, mode='merge'):
+    if mode not in ('merge', 'replace'): raise ValueError('Invalid import mode')
     staged = getattr(store, '_previews', {}).get(token)
     if not staged or staged['errors'] or staged['revision'] != _revision(store):
         raise ValueError('Import preview is invalid, has errors, or is stale')
     data = staged['data']
+    if mode == 'replace' and not data['Assets']: raise ValueError('Cannot replace the database with an empty workbook')
     children = {}
     for sheet, key in [('Inspection Plan','inspections'), ('Technical Details','technical_details'), ('Notes & Actions','notes'), ('Review Items','review_items'), ('Source Cells','source_cells')]:
         grouped = defaultdict(list)
@@ -84,6 +106,10 @@ def apply_import(store, token):
         if revision != staged['revision']:
             raise ValueError('Import preview is stale')
         conn.execute('CREATE TABLE IF NOT EXISTS import_reference (name TEXT PRIMARY KEY, contents TEXT NOT NULL)')
+        if mode == 'replace':
+            incoming_ids = {asset['asset_id'] for asset in data['Assets']}
+            conn.executemany('DELETE FROM assets WHERE id=?', [(row[0],) for row in rows if row[0] not in incoming_ids])
+            conn.execute('DELETE FROM import_reference')
         for asset in data['Assets']:
             asset_id = asset['asset_id']
             old = conn.execute('SELECT version FROM assets WHERE id=?', (asset_id,)).fetchone()

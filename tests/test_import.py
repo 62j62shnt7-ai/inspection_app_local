@@ -23,6 +23,28 @@ class ImportTests(unittest.TestCase):
             apply_import(store, second['token'])
             self.assertNotEqual(store.get_asset('A03-0015')['name'], 'Edited name')
             self.assertEqual(store.get_asset(extra['id'])['name'], 'Extra')
+    def test_preview_compares_existing_and_incoming_records(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            store = Store(Path(tmp) / 'plan.db')
+            first = preview_import(store, WORKBOOK)
+            apply_import(store, first['token'])
+            asset = store.get_asset('A03-0015')
+            store.save_asset(asset['id'], {'name': 'Edited name'}, asset['version'])
+            preview = preview_import(store, WORKBOOK)
+            changed = next(row for row in preview['comparison'] if row['id'] == asset['id'])
+            self.assertEqual(changed['status'], 'changed')
+            self.assertTrue(any(field['field'] == 'Asset name' and field['current'] == 'Edited name' for field in changed['changes']))
+
+    def test_replace_import_removes_absent_assets_and_backup_recovers_them(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            store = Store(Path(tmp) / 'plan.db')
+            extra = store.save_asset(None, {'name': 'Extra', 'family': 'Flowline'}, None)
+            preview = preview_import(store, WORKBOOK)
+            result = apply_import(store, preview['token'], mode='replace')
+            with self.assertRaises(KeyError): store.get_asset(extra['id'])
+            self.assertEqual(Store(result['backup']).get_asset(extra['id'])['name'], 'Extra')
+            self.assertEqual(store.get_asset('A03-0015')['id'], 'A03-0015')
+
     def test_reviewed_workbook_imports_with_all_records(self):
         with tempfile.TemporaryDirectory() as tmp:
             store = Store(Path(tmp) / 'plan.db')

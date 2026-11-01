@@ -34,3 +34,16 @@ def restore_backup(store, path):
     if hasattr(store, '_previews'):
         store._previews.clear()
     return {'safety_backup': str(safety)}
+
+
+def list_backups(store):
+    folder = Path(store.db_path).parent / 'backups'
+    if not folder.is_dir(): return []
+    files = [p for p in folder.glob('inspection-*.db') if p.is_file() and not p.is_symlink()]
+    return [{'filename': p.name, 'modified': datetime.fromtimestamp(p.stat().st_mtime).isoformat(timespec='seconds'), 'size': p.stat().st_size} for p in sorted(files, key=lambda p: p.stat().st_mtime, reverse=True)]
+
+
+def restore_saved_backup(store, filename):
+    if not isinstance(filename, str) or filename not in {row['filename'] for row in list_backups(store)}:
+        raise ValueError('Backup not found')
+    return restore_backup(store, Path(store.db_path).parent / 'backups' / filename)

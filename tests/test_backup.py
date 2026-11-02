@@ -6,6 +6,15 @@ from inspection_app.store import Store
 from inspection_app.backups import create_backup
 
 class BackupTests(unittest.TestCase):
+    def test_migration_backups_are_listed_and_can_be_deleted(self):
+        from inspection_app.backups import list_backups,delete_saved_backups
+        with tempfile.TemporaryDirectory() as tmp:
+            store=Store(Path(tmp)/'master.db')
+            raw=create_backup(store)
+            migration=raw.with_name('inspection-migration-20261102-123456-1234abcd.db')
+            raw.rename(migration)
+            self.assertIn(migration.name,[row['filename'] for row in list_backups(store)])
+            self.assertEqual(delete_saved_backups(store,[migration.name])['deleted'],[migration.name])
     def test_delete_saved_backups_removes_only_selected_backups(self):
         from inspection_app.backups import delete_saved_backups, list_backups
         with tempfile.TemporaryDirectory() as tmp:

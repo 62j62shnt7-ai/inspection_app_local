@@ -96,3 +96,15 @@ test('register selection accumulates across pages and filters before batch verif
 });
 
 function getFunctionBody(name){const start=source.indexOf('function '+name+'(');assert.notEqual(start,-1,`${name} must exist`);let depth=0,opened=false;for(let i=source.indexOf('{',start);i<source.length;i++){if(source[i]==='{'){depth++;opened=true}if(source[i]==='}'){depth--;if(opened&&depth===0)return source.slice(start,i+1)}}throw Error('missing function end')}
+
+test('year-only preview groups dates by year and shows retained problems',()=>{
+ const nodes={};function node(tag,text=''){return {tag,textContent:text,children:[],append(...items){this.children.push(...items)},replaceChildren(...items){this.children=items}}}
+ const ctx=vm.createContext({$:s=>nodes[s]??=node('div'),el:node,verificationLabel:field=>field});
+ vm.runInContext(source,ctx);
+ ctx.renderYearOnlyPreview({selected_count:1,date_count:2,groups:[{year:'2020',date_count:1},{year:'2025',date_count:1}],changes:[{asset_id:'a',name:'Line A',date_changes:[{year:'2020',inspection_type:'OSI',field:'last_inspection_month',original:'2020',after:'2020-01'},{year:'2025',inspection_type:'OSI',field:'next_inspection_month',original:'2025',after:'2025-01'}],remaining_issues:[{message:'Next month precedes last inspection'}]}]});
+ const all=n=>[n,...n.children.flatMap(all)];const text=all(nodes['#year-only-preview']).map(n=>n.textContent).join(' ');
+ assert.match(text,/2020.*2020-01/);assert.match(text,/2025.*2025-01/);assert.match(text,/Next month precedes last inspection/);
+ assert.equal(nodes['#year-only-apply'].disabled,false);
+ ctx.renderYearOnlyPreview({selected_count:0,date_count:0,groups:[],changes:[]});
+ assert.equal(nodes['#year-only-apply'].disabled,true);
+});

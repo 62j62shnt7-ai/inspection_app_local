@@ -2,6 +2,19 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs'),vm=require('node:vm');
 const source=fs.readFileSync('static/app.js','utf8');
+test('loading a reset dataset removes old browser state and keeps appearance',()=>{
+ function storage(values){const rows=new Map(Object.entries(values));return {get length(){return rows.size},key:i=>Array.from(rows.keys())[i],removeItem:k=>rows.delete(k),getItem:k=>rows.get(k)??null,setItem:(k,v)=>rows.set(k,v)}}
+ const local=storage({'inspection-data-epoch':'old','inspection-theme':'dark','inspection-recon-aliases':'old aliases',unrelated:'keep'}),session=storage({'inspection-last-bulk':'old operation'});
+ const ctx=vm.createContext({});vm.runInContext(getFunction('synchronizeBrowserDataset'),ctx);
+ ctx.synchronizeBrowserDataset(local,session,'new');
+ assert.equal(local.getItem('inspection-recon-aliases'),null);assert.equal(session.getItem('inspection-last-bulk'),null);assert.equal(local.getItem('inspection-theme'),'dark');assert.equal(local.getItem('unrelated'),'keep');assert.equal(local.getItem('inspection-data-epoch'),'new');
+});
+test('backup upload accepts compressed and existing SQLite formats',()=>{
+ const html=fs.readFileSync('static/index.html','utf8');
+ const input=html.match(/<input[^>]*id="restore-file"[^>]*>/)[0];
+ const accepted=input.match(/accept="([^"]+)"/)[1].split(',');
+ for(const extension of ['.db','.sqlite','.sqlite3','.gz'])assert.ok(accepted.includes(extension),extension);
+});
 test('main served script can render an import preview without loading a second script',()=>{
  const nodes={};function node(tag){return {tagName:tag,content:'test-token',children:[],value:'',dataset:{},attributes:{},classList:{toggle(){},add(){},remove(){}},addEventListener(){},setAttribute(k,v){this.attributes[k]=v},removeAttribute(k){delete this.attributes[k]},setCustomValidity(v){this.validationMessage=v},checkValidity(){return !this.validationMessage},focus(){},append(...xs){this.children.push(...xs)},replaceChildren(...xs){this.children=xs}}}
  const document={querySelector:s=>nodes[s]??=node('div'),querySelectorAll:()=>[],createElement:node};
@@ -269,7 +282,7 @@ test('yearly export omissions explain review, undated and earlier due months',()
  assert.deepEqual(Array.from(report,r=>r.reason),['Needs review','No next month / scheduling condition','Due before selected year; carry-over is off']);
 });
 test('editor field context shows only matching saved verification and issues and removes verification when edited',()=>{
- const ctx=vm.createContext({el:(tag,text,cls)=>({tag,textContent:text,className:cls}),markFieldState(label,state,text){label.states.push([state,text])}});
+ const ctx=vm.createContext({el:(tag,text,cls)=>({tag,textContent:text,className:cls,dataset:{}}),markFieldState(label,state,text){label.states.push([state,text])}});
  vm.runInContext(getFunction('decorateEditorField'),ctx);
  const listeners={},label={states:[],children:[],append(x){this.children.push(x)},closest(){return null},querySelector(selector){return selector.includes('verified')?{remove(){}}:null},addEventListener(k,fn){listeners[k]=fn},classList:{remove(){}}};
  ctx.decorateEditorField(label,'name',{fields:[{field:'name',verified:true}],version:3},[{field:'name',severity:'blocking',message:'Name needed'},{field:'family',message:'Other'}],3);
@@ -314,4 +327,12 @@ test('register local review and attention filters agree with asset and schedule 
  filters['review-filter']='';filters['due-filter']='attention';
  assert.equal(ctx.matches({inspections:[{applicable:'Yes',scheduling_condition:'OOS'}]}),false);
  assert.equal(ctx.matches({asset_review_reasons:['Missing name']}),true);
+});
+
+test('review comments mentioning month remain ordinary text controls',()=>{
+ const ctx=vm.createContext({el:(tag,text)=>({tagName:tag,textContent:text,children:[],append(...xs){this.children.push(...xs)}}),editorDirty:false,monthEntry(){throw Error('Review item incorrectly became a date input')}});
+ vm.runInContext(getFunction('field'),ctx);
+ const parent={children:[],append(x){this.children.push(x)}};
+ ctx.field(parent,'OSI: last inspection · No unambiguous month; original value retained for review.','Review',()=>{});
+ assert.equal(parent.children[0].children[0].tagName,'input');
 });

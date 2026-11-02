@@ -4,6 +4,8 @@ from datetime import datetime, timezone, date
 import json
 import sqlite3
 import uuid
+import re
+import copy
 from .store import serialized
 from .mutations import next_revision, record_event
 from .validation import fingerprint, validate_record, RULES_VERSION
@@ -76,7 +78,7 @@ def required_fields(asset):
         prefix='inspections.'+i['inspection_type']+'.'
         required.append(prefix+'applicable')
         if i.get('applicable')=='Yes':
-            required.extend([prefix+'next_inspection_month'] if i.get('next_inspection_month') else [prefix+'scheduling_condition',prefix+'condition_review_by'])
+            required.extend([prefix+'next_inspection_month'] if i.get('next_inspection_month') else [prefix+'scheduling_condition'])
     return required
 
 
@@ -404,13 +406,59 @@ def preview_bulk_correction(store, asset_ids, operation):
     return result
 
 
+@serialized
+def preview_year_only_dates(store):
+    """Preview the owner's January convention; never infer years or replace months."""
+    from .validation import reconcile_import_reviews
+    with closing(sqlite3.connect(store.db_path)) as conn, conn:
+        revision=conn.execute('SELECT value FROM version_clock WHERE id=1').fetchone()[0]
+        changes=[]
+        groups={}
+        for asset in read_assets(conn):
+            if asset.get('record_status')=='Archived':
+                continue
+            before={'inspections':copy.deepcopy(asset.get('inspections',[])),
+                    'review_items':copy.deepcopy(asset.get('review_items',[]))}
+            draft=copy.deepcopy(asset)
+            updates=[]
+            for inspection in draft.get('inspections',[]):
+                if inspection.get('applicable')!='Yes':
+                    continue
+                for field,original in (('last_inspection_month','last_original'),('next_inspection_month','next_original')):
+                    raw=inspection.get(original)
+                    year=str(raw or '').strip()
+                    if inspection.get(field) not in (None,'') or not re.fullmatch(r'[0-9]{4}',year) or year=='0000':
+                        continue
+                    inspection[field]=year+'-01'
+                    updates.append({'inspection_type':inspection['inspection_type'],'field':field,
+                                    'original':raw,'before':None,'after':year+'-01','year':year})
+                    groups[year]=groups.get(year,0)+1
+            if not updates:
+                continue
+            reconcile_import_reviews(draft)
+            after={'inspections':draft['inspections'],'review_items':draft.get('review_items',[])}
+            changes.append({'asset_id':asset['id'],'name':asset['name'],'version':asset['version'],
+                            'field':'inspection_dates','before':before,'after':after,'date_changes':updates,
+                            'remaining_issues':validate_record(draft)})
+        result={'preview_id':str(uuid.uuid4()),'revision':revision,'changes':changes,
+                'selected_count':len(changes),'date_count':sum(len(c['date_changes']) for c in changes),
+                'groups':[{'year':year,'date_count':groups[year]} for year in sorted(groups)],
+                'operation':{'operation':'year_only_january','scope':'all_active_applicable_inspections'}}
+        conn.execute('INSERT INTO bulk_operations(operation_id,state,contents) VALUES (?,?,?)',
+                     (result['preview_id'],'preview',json.dumps(result,ensure_ascii=False)))
+    return result
+
+
 def _write_bulk(conn,store,changes,origin,reason):
     applied=[]
     for change in changes:
         row=conn.execute('SELECT name,family,version,details FROM assets WHERE id=?',(change['asset_id'],)).fetchone()
         if not row or row[2]!=change['version']:raise ValueError('Affected asset changed. Review a new preview.')
         before={'name':row[0],'family':row[1],**json.loads(row[3])}
-        after={**before,change['field']:change['after']}
+        if change['field']=='inspection_dates':
+            after={**before,**copy.deepcopy(change['after'])}
+        else:
+            after={**before,change['field']:change['after']}
         if not isinstance(after.get('name'),str) or not after['name'].strip() or not isinstance(after.get('family'),str) or not after['family'].strip():
             raise ValueError('Name and family are required')
         details={k:v for k,v in after.items() if k not in ('name','family')}

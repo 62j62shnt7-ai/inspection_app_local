@@ -218,3 +218,67 @@ main{padding:0 28px 56px;margin-top:30px}h1{font-size:27px;font-weight:730;lette
 .management-panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:20px;margin:20px 0}.management-panel h2{margin:0 0 10px}.management-panel p{max-width:730px}.management-panel label{margin-top:14px}.management-panel input[type=file]{display:block}.management-panel button{margin:4px 6px 4px 0}:root[data-theme=light] .management-panel{box-shadow:0 2px 8px #182d3e0d}@media(max-width:650px){.management-panel{padding:16px}.management-panel input:not([type=checkbox]){width:100%}}
 
 .management-panel #backup-folder{display:block;width:min(100%,560px);margin-top:6px}.backup-row>div{flex:1;min-width:0}.backup-row .backup-choice{margin:0}
+
+/* Keep year-only review controls visible even with a full-register preview. */
+#year-only-dialog{width:min(900px,96vw);height:90vh;max-height:90vh;padding:0;overflow:hidden}
+#year-only-dialog[open]{display:flex;flex-direction:column}
+.year-only-header,.year-only-footer{flex:none;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 20px;background:var(--panel)}
+.year-only-header{border-bottom:1px solid var(--line)}
+.year-only-header h2{margin:0}.year-only-header button{flex:none}
+.year-only-body{flex:1;min-height:0;overflow-y:scroll;scrollbar-gutter:stable;padding:16px 20px;overflow-wrap:anywhere}
+.year-only-body textarea{display:block;width:100%;min-height:70px}
+.year-only-footer{border-top:1px solid var(--line);flex-wrap:wrap}
+
+.cleanup-items{max-height:22rem;overflow:auto;margin:1rem 0;border:1px solid var(--border,#777);border-radius:.5rem;padding:.75rem}.cleanup-choice{display:flex;align-items:center;flex-wrap:wrap;gap:.6rem;padding:.45rem 0}.cleanup-choice input{width:auto}.cleanup-choice small{width:100%;overflow-wrap:anywhere}.cleanup-preview{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;max-height:22rem;overflow:auto}#stored-delete-dialog{max-width:52rem;width:90vw}#stored-data-selection{margin-left:1rem}
+
+/* Asset review rows sit inside an edge-to-edge dashboard panel. */
+.queue-panel > .backup-row{padding:11px 19px;flex-wrap:wrap}
+.queue-panel > .backup-row p{flex:1 1 280px;min-width:0;margin:0;overflow-wrap:anywhere}
+.queue-panel > .backup-row button{max-width:100%;white-space:normal;overflow-wrap:anywhere;text-align:left}
+
+/* Light surfaces for components whose dark styles have higher specificity. */
+:root[data-theme=light] #import input[type=file]{background:#fff;color:#182d3e;border-color:#899eae}
+:root[data-theme=light] .danger-zone{background:#fff2f2;border-color:#d88b90}
+:root[data-theme=light] .danger-zone h2{color:#7d1f27}
+:root[data-theme=light] .comparison{background:#f2f6f8;border-color:#c4cfd9}
+:root[data-theme=light] .comparison-row{border-color:#c4cfd9}
+:root[data-theme=light] .recon-summary button.recon-summary-filter{background:transparent;color:#203d50}
+:root[data-theme=light] .recon-summary button.recon-summary-filter strong{color:#075e68}
+:root[data-theme=light] .recon-summary button.recon-summary-filter span{color:#40586a}
+:root[data-theme=light] .recon-summary button.recon-summary-filter:hover,:root[data-theme=light] .recon-summary button.recon-summary-filter[aria-pressed=true]{background:#d8eeee;border-color:#80b5b5}
+:root[data-theme=light] #asset-rows tr.recon-updated-row{background:#e3f5ef}
+:root[data-theme=light] #asset-rows tr.recon-confirmed-row{background:#fff3db}
+:root[data-theme=light] .recon-updated-label,:root[data-theme=light] .recon-tab-mark{color:#08634f}
+:root[data-theme=light] .recon-pending-label{color:#79500b}
+:root[data-theme=light] .field-grid label.recon-updated-field,:root[data-theme=light] .recon-editor-note{background:#e3f5ef;color:#185344;border-color:#75b5a1}
+:root[data-theme=light] .field-grid p.recon-pending-remark{background:#fff3db;color:#5c4216;border-color:#a98a50}
+:root[data-theme=light] .month-entry-error{color:#a7212b}
+
+/* Light theme: cover nested and state-specific surfaces as well as base panels. */
+:root[data-theme=light] .card:after{background:#e5eff4;color:#36566b;border-color:#b4c8d4}
+:root[data-theme=light] .overview-date{background:#f5fafc;border-color:#b7cbd6;color:#40586a}
+:root[data-theme=light] .sheet-panel{background:#fff;border-color:#c4cfd9}
+:root[data-theme=light] .sheet-list:not(.register-sheets) button{background:#edf3f7;color:#203d50;border-color:#b8c7d2}
+:root[data-theme=light] .sheet-list:not(.register-sheets) button:hover{background:#d8eeee;color:#07565c;border-color:#80b5b5}
+:root[data-theme=light] .selection-bar{background:#e4f2f6;color:#203d50;border-color:#9bbecb}
+:root[data-theme=light] .asset-group th{background:#e2edf3;color:#244757;border-color:#b6cad5}
+:root[data-theme=light] .attention-queue{background:#fff;border-color:#d0ae61}
+:root[data-theme=light] .attention-queue .queue-head{background:#fff3db;border-color:#d0ae61}
+:root[data-theme=light] .attention-queue .queue-count,:root[data-theme=light] .attention-badge.review{background:#fff2d6;color:#684700;border-color:#d0ae61}
+:root[data-theme=light] .attention-summary{background:#fff8eb;color:#5c4216;border-color:#dbc9a4}
+:root[data-theme=light] .attention-row.attention-review{background:#fff8eb}
+:root[data-theme=light] .attention-badge.condition,:root[data-theme=light] .attention-badge.undated{background:#e8eff4;color:#203f52;border-color:#a7bac8}
+:root[data-theme=light] .inspection-attention-notice strong{color:#5c4216}
+:root[data-theme=light] .badge.agree{background:#e3f5ef;color:#185344;border-color:#75b5a1}
+:root[data-theme=light] .badge.different{background:#fff2d6;color:#684700;border-color:#d0ae61}
+:root[data-theme=light] #asset-rows tr.recon-updated-row:hover{background:#d2eee5}
+:root[data-theme=light] #asset-rows tr.recon-confirmed-row:hover{background:#f9e9c7}
+:root[data-theme=light] .recon-result:hover{background:#dcecf2;color:#182d3e;border-color:#80b5b5}
+:root[data-theme=light] .recon-comparison-note,:root[data-theme=light] #recon-count{color:#4e6476}
+:root[data-theme=light] .month-picker-toggle,:root[data-theme=light] .month-picker-month{background:#eaf1f5;color:#182d3e;border-color:#a9bac8}
+:root[data-theme=light] .month-picker-month:hover,:root[data-theme=light] .month-picker-month:focus-visible{background:#d8eeee;color:#07565c}
+:root[data-theme=light] .month-picker-month[aria-pressed=true]{background:#08737c;color:#fff}
+
+/* Native Windows select menus may otherwise pair inherited light text with a white menu. */
+:root[data-theme=dark] select option,:root[data-theme=dark] select optgroup{background-color:#172230;color:#e6edf5}
+:root[data-theme=light] select option,:root[data-theme=light] select optgroup{background-color:#fff;color:#182d3e}

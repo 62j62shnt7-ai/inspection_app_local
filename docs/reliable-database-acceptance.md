@@ -6,7 +6,7 @@ Implementation remains a testing candidate on `codex/reliable-master-database`. 
 
 - Existing original layouts, header validation, tab selection, permanent IDs and optional Import Decisions remain supported. New context conflicts require review. The established EPF/MOP compatibility fallback is preserved.
 - Versioned migrations with pre-upgrade backups, non-reusable edit tokens and transactional correction events cover manual writes, imports, reconciliation, clear, bulk corrections and consolidation. Restore refreshes tokens.
-- Shared calendar parsing, structural validation, reproducible engineering findings, owner-approved automatic applicability/completeness checks, optional review-by warnings and missing formula-cache warnings.
+- Shared calendar parsing, structural validation, reproducible engineering findings, owner-approved automatic applicability/completeness checks, optional review-by dates without missing/overdue-review flags and missing formula-cache warnings.
 - Durable import previews, exact source archives, checksums, row accounting, explicit unclassified-row acknowledgement, restart/resume, previous-source/current/incoming comparison, protection of verified corrections and populated values against incoming blanks, retained linked rows and explicit consolidation aliases.
 - Persistent issues, evidence-backed resolutions, field-level verification/history, related-decision invalidation, automatic readiness assessment without mandatory manual verification and immutable named snapshots with a complete exclusion list. Accepted source review decisions drive schedule summaries without rewriting raw source evidence.
 - Bulk normalization/set/clear previews, explicit selection across pages, atomic application and guarded compensating reverts.
@@ -78,3 +78,15 @@ The owner approved exception-based review and automatic snapshot inclusion for e
 - Focused independent review identified two summary inconsistencies: omitted asset-level blockers and technical-field incoming-difference fingerprints evaluated after trimming technical details. Both were fixed with failing-then-passing regression tests; the final focused re-review reported no remaining material findings. This is not a complete release or security sign-off.
 
 No operational data or source workbooks were modified for development. Existing uncommitted UI work was preserved and checked with the combined automated suites. Native Windows execution, full accessibility acceptance, and owner acceptance remain outstanding. Close and reopen the running application, then refresh Data quality to load the new Python criteria.
+
+### Windows request contention follow-up
+
+Asset/import-history reads now share the mutation lock, preventing in-process reads from overlapping writes and restores. Responses are sent after releasing that lock. Aborted/reset connections stop response delivery without attempting a second response or claiming a completed mutation was rolled back. SQLite operational failures produce a controlled 503 response. Regression checks cover read/write exclusion, response lock release, disconnected sockets, and busy responses. Native Windows verification remains outstanding; an external process holding the SQLite file can still cause contention.
+
+### Single-record duplicate review follow-up
+
+The editor now uses explicit month-field labels, so imported review comments mentioning “month” remain text inputs and cannot silently prevent form submission with a date-pattern mismatch. Corrected imported inspection dates resolve matching generated review items on save; a read-only draft preview hides resolved comments in both modal sections. Independent concerns remain open and original values/reasons remain stored. A disposable browser check corrected one last-inspection month, saved without clearing either status, and reopened both tabs with no stale warning. Native Windows UI remains unverified.
+
+### Year-only January batch correction
+
+Data quality now offers a year-grouped preview for last and next inspection fields whose retained source is an exact four-digit year and whose normalized month is blank. The owner-selected convention adds January without changing the year. Existing dates, blanks, other ambiguous values, archived records and inapplicable inspections are skipped. The existing backup, atomic apply, correction journal, revision guards and revert workflow cover the batch; matching generated reviews are reassessed while independent issues remain visible. Disposable browser acceptance covered preview, apply of two dates, retained unrelated ambiguity, empty repeat preview, and undo. Automated verification: 191 Python tests and 77 Node tests passed. Operational data was not modified. Native Windows acceptance remains unverified.

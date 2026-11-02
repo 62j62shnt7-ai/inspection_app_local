@@ -5,12 +5,13 @@ from pathlib import Path
 import hashlib
 import json
 import os
+import re
 import secrets
 import sqlite3
 import tempfile
 from zipfile import ZipFile, ZIP_DEFLATED, BadZipFile
 from .store import serialized
-from .backups import create_backup, restore_backup
+from .backups import create_backup, restore_backup, compact_database_copy
 
 
 def _settings(conn):
@@ -62,28 +63,41 @@ def configure_backup_folder(store,folder):
 
 
 @serialized
-def export_master_package(store,destination):
+def export_master_package(store,destination,allow_missing_sources=False):
     destination=Path(destination)
     with tempfile.TemporaryDirectory() as tmp:
         database=Path(tmp)/'master.db'
-        with closing(sqlite3.connect(store.db_path)) as source,closing(sqlite3.connect(database)) as target:
-            source.backup(target)
+        compact_database_copy(store.db_path, database)
         files={'master.db':database}
+        unavailable=set()
+        relocations={}
         with closing(sqlite3.connect(database)) as conn:
             has_batches=conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='import_batches'").fetchone()
-            required={r[0] for r in conn.execute("SELECT digest FROM import_batches WHERE state IN ('committed','staged')")} if has_batches else set()
+            required={digest for digest,raw in conn.execute("SELECT digest,contents FROM import_batches WHERE state IN ('committed','staged')") if not any(json.loads(raw).get(key) for key in ('evidence_deleted','source_archive_deleted'))} if has_batches else set()
         for digest in required:
             archive=Path(store.db_path).parent/'source-archives'/(digest+'.xlsx')
-            if not archive.is_file():raise ValueError('Required source archive is missing: '+digest)
+            if not archive.is_file():
+                if not allow_missing_sources:raise ValueError('Required source archive is missing: '+digest)
+                unavailable.add(digest)
         archives=Path(store.db_path).parent/'source-archives'
         if archives.is_dir():
             for path in archives.glob('*.xlsx'):
                 if path.is_symlink(): raise ValueError('Source archive cannot be a symbolic link')
-                if hashlib.sha256(path.read_bytes()).hexdigest()!=path.stem:
-                    raise ValueError('Source archive checksum mismatch: '+path.name)
-                files['source-archives/'+path.name]=path
+                actual=hashlib.sha256(path.read_bytes()).hexdigest()
+                if actual!=path.stem:
+                    if not allow_missing_sources or not re.fullmatch(r'[a-f0-9]{64}',path.stem):
+                        raise ValueError('Source archive checksum mismatch: '+path.name)
+                    # Preserve damaged bytes, without pretending that they are
+                    # the original workbook identified by the database digest.
+                    unavailable.add(path.stem);relocations[path.stem]=actual
+                files['source-archives/'+actual+'.xlsx']=path
         manifest={'format':'inspection-master-recovery','version':1,'created_at':datetime.now(timezone.utc).isoformat(),
                   'files':{name:hashlib.sha256(path.read_bytes()).hexdigest() for name,path in files.items()}}
+        # Misnamed archives may supply another expected digest (including a
+        # pair of swapped files). Availability describes the final package.
+        unavailable.difference_update(name.split('/')[-1][:-5] for name in files if name.startswith('source-archives/'))
+        if unavailable:manifest['unavailable_sources']=sorted(unavailable)
+        if relocations:manifest['source_relocations']=relocations
         fd,temporary=tempfile.mkstemp(dir=destination.parent,suffix='.partial');os.close(fd)
         try:
             with ZipFile(temporary,'w',ZIP_DEFLATED) as package:
@@ -102,8 +116,16 @@ def validate_restore_package(path):
             if len(names)!=len(set(names)): raise ValueError('Duplicate recovery package entries')
             if sum(info.file_size for info in package.infolist())>1024*1024*1024: raise ValueError('Recovery package is too large')
             manifest=json.loads(package.read('manifest.json'))
-            if manifest.get('format')!='inspection-master-recovery' or manifest.get('version')!=1 or 'master.db' not in manifest.get('files',{}):
+            if not isinstance(manifest,dict) or manifest.get('format')!='inspection-master-recovery' or manifest.get('version')!=1 or not isinstance(manifest.get('files'),dict) or 'master.db' not in manifest['files']:
                 raise ValueError('Unsupported recovery package')
+            unavailable=manifest.get('unavailable_sources',[])
+            if not isinstance(unavailable,list) or any(not isinstance(digest,str) or not re.fullmatch(r'[a-f0-9]{64}',digest) for digest in unavailable) or len(set(unavailable))!=len(unavailable):
+                raise ValueError('Invalid unavailable-source inventory')
+            if any('source-archives/'+digest+'.xlsx' in manifest['files'] for digest in unavailable):
+                raise ValueError('Unavailable source is also present in recovery inventory')
+            relocations=manifest.get('source_relocations',{})
+            if not isinstance(relocations,dict) or any(not re.fullmatch(r'[a-f0-9]{64}',old) or not isinstance(new,str) or not re.fullmatch(r'[a-f0-9]{64}',new) or old==new or 'source-archives/'+new+'.xlsx' not in manifest['files'] for old,new in relocations.items()):
+                raise ValueError('Invalid source relocation inventory')
             if set(names)!=set(manifest['files'])|{'manifest.json'}: raise ValueError('Recovery package inventory mismatch')
             for name,digest in manifest['files'].items():
                 if name!='master.db' and not (name.startswith('source-archives/') and len(name.split('/'))==2 and name.split('/')[1]==digest+'.xlsx'):
@@ -114,8 +136,8 @@ def validate_restore_package(path):
                 with closing(sqlite3.connect(database)) as conn:
                     has_batches=conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='import_batches'").fetchone()
                     if has_batches:
-                        for (digest,) in conn.execute("SELECT digest FROM import_batches WHERE state IN ('committed','staged')"):
-                            if 'source-archives/'+digest+'.xlsx' not in manifest['files']:raise ValueError('Required source archive is missing from recovery package')
+                        for digest,raw in conn.execute("SELECT digest,contents FROM import_batches WHERE state IN ('committed','staged')"):
+                            if not any(json.loads(raw).get(key) for key in ('evidence_deleted','source_archive_deleted')) and digest not in unavailable and 'source-archives/'+digest+'.xlsx' not in manifest['files']:raise ValueError('Required source archive is missing from recovery package')
             return manifest
     except (BadZipFile,KeyError,TypeError,json.JSONDecodeError) as exc:
         raise ValueError('Invalid recovery package') from exc
@@ -147,7 +169,9 @@ def restore_master_package(store,path):
         except Exception:
             for target in installed:target.unlink(missing_ok=True)
             raise
-    return {**result,'archives_restored':len(installed),'warning':None}
+    if manifest.get('unavailable_sources') and not result.get('warning'):
+        result['warning']='This package records '+str(len(manifest['unavailable_sources']))+' source archives as unavailable when it was created.'
+    return {**result,'archives_restored':len(installed)}
 
 
 @serialized
@@ -155,7 +179,7 @@ def automatic_backup(store,force=False):
     settings=backup_status(store)
     today=date.today().isoformat()
     if not force and settings.get('day')==today:return settings
-    local=create_backup(store)
+    local=create_backup(store, compress=True)
     settings.update(day=today,local_success=True,local_path=str(local),local_at=datetime.now(timezone.utc).isoformat(),independent_success=False,error=None)
     folder=settings.get('folder')
     if folder:

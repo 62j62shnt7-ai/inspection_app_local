@@ -87,10 +87,10 @@ def list_import_history(store, limit=20):
     if not isinstance(limit, int) or isinstance(limit, bool) or not 1 <= limit <= 100:
         raise ValueError('Invalid import history limit')
     with closing(sqlite3.connect(store.db_path)) as conn:
-        rows=conn.execute("SELECT digest,contents FROM import_batches WHERE state='committed' ORDER BY rowid DESC LIMIT ?",(limit,)).fetchall()
+        rows=conn.execute("SELECT token,digest,contents FROM import_batches WHERE state='committed' ORDER BY rowid DESC LIMIT ?",(limit,)).fetchall()
     history=[]
     folder=Path(store.db_path).parent/'source-archives'
-    for digest,raw in rows:
+    for token,digest,raw in rows:
         batch=json.loads(raw)
         summaries=batch.get('sheet_summary',[])
         unclassified=[{'sheet':sheet.get('name'),'rows':sheet.get('unclassified_rows',[])} for sheet in summaries if sheet.get('unclassified_rows')]
@@ -100,7 +100,9 @@ def list_import_history(store, limit=20):
             available=not source.is_symlink() and _archive_hash(str(source),stat.st_mtime_ns,stat.st_size)==digest
         except OSError:
             available=False
-        history.append({'digest':digest,'format':batch.get('format'),'assets':len(batch.get('data',{}).get('Assets',[])),
+        history.append({'batch_id':token,'digest':digest,'format':batch.get('format'),'assets':len(batch.get('data',{}).get('Assets',[])),
+                        'dismissed':bool(batch.get('coverage_dismissed')),'evidence_deleted':bool(batch.get('evidence_deleted')),
+                        'source_archive_deleted':bool(batch.get('source_archive_deleted')),
                         'coverage_acknowledged':batch.get('coverage_acknowledged') is True,
                         'unclassified_count':sum(len(item['rows']) for item in unclassified),
                         'unclassified_rows':unclassified,'excluded_sheets':batch.get('excluded_sheets',[]),

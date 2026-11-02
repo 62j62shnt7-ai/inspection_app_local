@@ -36,6 +36,8 @@ class Store:
                 conn.execute("ALTER TABLE assets ADD COLUMN details TEXT NOT NULL DEFAULT '{}'")
             initialize_version_clock(conn)
             migrate_database(conn)
+        from .cleanup import recover_pending_cleanup
+        recover_pending_cleanup(self)
 
     @serialized
     def get_asset(self, asset_id):
@@ -63,7 +65,9 @@ class Store:
                     raise ValueError('Name and family are required')
                 asset_id = str(uuid.uuid4())
                 details = {k:v for k,v in payload.items() if k not in ('id','version','name','family')}
+                from .validation import reconcile_import_reviews
                 self._validate_details(family, details)
+                reconcile_import_reviews({'id':asset_id,'name':name,'family':family,**details})
                 conn.execute('INSERT INTO assets (id,name,family,version,details) VALUES (?, ?, ?, ?, ?)', (asset_id, name, family, next_revision(conn), json.dumps(details)))
             else:
                 conn.row_factory = sqlite3.Row
@@ -78,7 +82,9 @@ class Store:
                 before = {'name': row['name'], 'family': row['family'], **json.loads(row['details'])}
                 details = json.loads(row['details'])
                 details.update({k:v for k,v in payload.items() if k not in ('id','version','name','family')})
+                from .validation import reconcile_import_reviews
                 self._validate_details(family, details)
+                reconcile_import_reviews({'id':asset_id,'name':name,'family':family,**details})
                 changed = conn.execute('UPDATE assets SET name=?, family=?, details=?, version=? WHERE id=? AND version=?', (name, family, json.dumps(details), next_revision(conn), asset_id, expected_version)).rowcount
                 if changed != 1:
                     raise ValueError('Asset was changed by another edit')

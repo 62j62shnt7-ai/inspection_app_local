@@ -9,6 +9,7 @@ from .recovery import export_master_package, restore_master_package, automatic_b
 from .quality import scan_quality, assess_readiness, verify_fields, asset_verification, resolve_issue, publish_snapshot
 from .import_batches import invalidate_batches
 from .mutations import clear_master
+from .cleanup import inventory, preview_cleanup, apply_cleanup, set_coverage_dismissed, data_epoch
 import json
 import io
 import secrets
@@ -31,8 +32,35 @@ def create_server(store, port=0):
     token = secrets.token_urlsafe(32)
     class Handler(BaseHTTPRequestHandler):
         def respond(self, status, payload, content_type='application/json'):
+            if getattr(self, '_defer_response', False):
+                self._pending_response = (status, payload, content_type)
+                return
             body = payload if isinstance(payload, bytes) else json.dumps(payload, ensure_ascii=False, default=str).encode()
-            self.send_response(status); self.send_header('Content-Type',content_type); self.send_header('Content-Length',str(len(body))); self.send_header('Cache-Control','no-store'); self.send_header('X-Content-Type-Options','nosniff'); self.end_headers(); self.wfile.write(body)
+            try:
+                self.send_response(status)
+                self.send_header('Content-Type',content_type)
+                self.send_header('Content-Length',str(len(body)))
+                self.send_header('Cache-Control','no-store')
+                self.send_header('X-Content-Type-Options','nosniff')
+                self.end_headers()
+                self.wfile.write(body)
+            except (ConnectionError, TimeoutError):
+                # The operation may already be committed. Never retry the response
+                # or report a disconnected client as a failed database mutation.
+                self.close_connection = True
+
+        def run_locked(self, operation):
+            # Serialize reads with writes/restores, but release the database lock
+            # before sending bytes to a potentially slow or disconnected browser.
+            self._pending_response = None
+            self._defer_response = True
+            try:
+                with store._lock:
+                    operation()
+            finally:
+                self._defer_response = False
+            if self._pending_response is not None:
+                self.respond(*self._pending_response)
         def permitted(self, mutation=False):
             host = self.headers.get('Host','')
             expected = '127.0.0.1:' + str(self.server.server_port)
@@ -41,13 +69,16 @@ def create_server(store, port=0):
             if origin and origin != 'http://' + expected: return False
             return not mutation or self.headers.get('X-App-Token') == token
         def do_GET(self):
+            return self.run_locked(self._get)
+
+        def _get(self):
             if not self.permitted(): return self.respond(403, {'error':'Forbidden'})
             parsed = urlparse(self.path); path = parsed.path; params = parse_qs(parsed.query)
             try:
                 if path in ('/', '/index.html'):
-                    html = (STATIC / 'index.html').read_text(encoding='utf-8').replace('__APP_TOKEN__',token)
+                    html = (STATIC / 'index.html').read_text(encoding='utf-8').replace('__APP_TOKEN__',token).replace('__DATA_EPOCH__',data_epoch(store))
                     return self.respond(200,html.encode(),'text/html; charset=utf-8')
-                if path in ('/app.js','/style.css','/reconciliation.js','/quality.js'):
+                if path in ('/app.js','/style.css','/reconciliation.js','/quality.js','/cleanup.js'):
                     return self.respond(200,(STATIC/path[1:]).read_bytes(),'text/javascript; charset=utf-8' if path.endswith('.js') else 'text/css; charset=utf-8')
                 if path == '/api/export':
                     with tempfile.TemporaryDirectory() as directory:
@@ -67,6 +98,7 @@ def create_server(store, port=0):
                     return self.respond(200,source.read_bytes(),'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
                 if path == '/api/import/staged': return self.respond(200,list_staged_batches(store))
                 if path == '/api/import/history': return self.respond(200,list_import_history(store))
+                if path == '/api/data/inventory': return self.respond(200,inventory(store))
                 if path == '/api/backup-status': return self.respond(200,backup_status(store))
                 if path == '/api/snapshots': return self.respond(200,list_snapshots(store))
                 if path.startswith('/api/snapshots/'): return self.respond(200,get_snapshot(store,path.removeprefix('/api/snapshots/')))
@@ -87,16 +119,30 @@ def create_server(store, port=0):
                     start = params.get('start',[current])[0]; end = params.get('end',[current])[0]
                     return self.respond(200,store.dashboard(current,start,end))
                 return self.respond(404,{'error':'Not found'})
+            except sqlite3.OperationalError:
+                return self.respond(503,{'error':'Database is busy or unavailable. Wait for the current operation to finish, then refresh.'})
             except KeyError: return self.respond(404,{'error':'Asset not found'})
             except ValueError as exc: return self.respond(400,{'error':str(exc)})
-        def do_POST(self): self.mutate()
+        def do_POST(self):
+            if urlparse(self.path).path == '/api/backup-folder/browse':
+                if not self.permitted(True): return self.respond(403, {'error':'Forbidden'})
+                try:
+                    from .folder_picker import choose_folder
+                    folder = choose_folder()
+                    if folder is None: return self.respond(200, {'cancelled':True})
+                    return self.respond(200,configure_backup_folder(store,folder))
+                except ValueError as exc:
+                    return self.respond(400,{'error':str(exc)})
+            self.mutate()
         def do_PUT(self): self.mutate()
         def mutate(self):
-            with store._lock:
-                return self._mutate()
+            return self.run_locked(self._mutate)
         def _mutate(self):
             if not self.permitted(True): return self.respond(403,{'error':'Forbidden'})
             try:
+                epoch = data_epoch(store)
+                if epoch!='initial' and self.headers.get('X-Data-Epoch')!=epoch:
+                    raise ValueError('Working data was reset. Reload this page before making changes.')
                 path=urlparse(self.path).path
                 length = int(self.headers.get('Content-Length','0'))
                 limit=256*1024*1024 if path in ('/api/restore','/api/recovery/restore') else 20*1024*1024
@@ -138,14 +184,26 @@ def create_server(store, port=0):
                     finally: temp_path.unlink(missing_ok=True)
                     return self.respond(200,result)
                 data = json.loads(body)
+                if path == '/api/data/preview': return self.respond(200,preview_cleanup(store,data))
+                if path == '/api/data/delete': return self.respond(200,apply_cleanup(store,data.get('preview_id'),data.get('confirmation')))
+                if path == '/api/data/coverage': return self.respond(200,set_coverage_dismissed(store,data.get('batch_id'),data.get('dismissed')))
                 if path == '/api/consolidation/preview': return self.respond(200,preview_consolidation(store,data.get('survivor_id'),data.get('duplicate_id')))
                 if path == '/api/consolidation/apply': return self.respond(200,apply_consolidation(store,data.get('preview_id'),data.get('revision'),data.get('choices'),data.get('evidence')))
                 if path == '/api/quality/query': return self.respond(200,query_quality(store,data))
                 if path == '/api/import/resume': return self.respond(200,resume_import(store,data.get('token')))
                 if path == '/api/register/query': return self.respond(200,query_register(store,data))
+                if path == '/api/bulk/year-only/preview':
+                    from .quality import preview_year_only_dates
+                    return self.respond(200,preview_year_only_dates(store))
                 if path == '/api/bulk/preview': return self.respond(200,preview_bulk_correction(store,data.get('asset_ids'),data.get('operation')))
                 if path == '/api/bulk/apply': return self.respond(200,apply_bulk_correction(store,data.get('preview_id'),data.get('revision'),data.get('reason')))
                 if path == '/api/bulk/revert': return self.respond(200,revert_bulk_correction(store,data.get('operation_id'),data.get('reason')))
+                if path == '/api/assets/review-preview':
+                    from .validation import reconcile_import_reviews, validate_record
+                    if not isinstance(data,dict): raise ValueError('Asset must be an object')
+                    store._validate_details(data.get('family',''),{k:v for k,v in data.items() if k not in ('id','name','family','version')})
+                    reconcile_import_reviews(data)
+                    return self.respond(200,{**data,'review_findings':validate_record(data)})
                 if path == '/api/backup-folder': return self.respond(200,configure_backup_folder(store,data.get('folder')))
                 if path == '/api/backup-test': return self.respond(200,automatic_backup(store,force=True))
                 if path == '/api/verification': return self.respond(200,verify_fields(store,data.get('asset_id'),data.get('version'),data.get('fields'),data.get('evidence')))
@@ -209,6 +267,8 @@ def create_server(store, port=0):
                     return self.respond(200,store.save_asset(unquote(path.removeprefix('/api/assets/')),data['asset'],data['version']))
                 return self.respond(404,{'error':'Not found'})
             except (ValueError, KeyError, TypeError, json.JSONDecodeError) as exc: return self.respond(400,{'error':str(exc)})
-            except Exception: return self.respond(400,{'error':'Unable to process request; no changes were saved.'})
+            except sqlite3.OperationalError:
+                return self.respond(503,{'error':'Database is busy or unavailable. Refresh and check the result before retrying.'})
+            except Exception: return self.respond(500,{'error':'Unable to complete the request. Refresh and check the result before retrying.'})
         def log_message(self, format, *args): pass
     return ThreadingHTTPServer(('127.0.0.1',port),Handler)

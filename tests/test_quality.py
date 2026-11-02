@@ -38,7 +38,7 @@ class QualityTests(unittest.TestCase):
         self.assertFalse(verified['name'])
         self.assertTrue(verified['family'])
 
-    def test_overdue_verified_condition_is_warning_without_exclusion(self):
+    def test_overdue_condition_review_by_does_not_flag_or_exclude(self):
         from inspection_app.quality import verify_fields, assess_readiness, verification_fields
         asset = self.asset()
         asset['inspections'][0].update(next_inspection_month=None, scheduling_condition='At next shutdown', condition_review_by='2025-01')
@@ -46,7 +46,7 @@ class QualityTests(unittest.TestCase):
         verify_fields(self.store, asset['id'], asset['version'], list(verification_fields(asset)), 'Reviewed schedule and shutdown condition')
         report = assess_readiness(self.store, current_month='2026-11')
         self.assertEqual(report['eligible'], [asset['id']])
-        self.assertTrue(any(i['rule_id']=='condition-review-due' for i in report['warnings']))
+        self.assertFalse(any('condition-review' in i['rule_id'] for i in report['warnings']))
 
     def test_verified_correction_survives_reimport_with_visible_difference(self):
         from inspection_app.exports import export_workbook

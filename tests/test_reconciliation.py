@@ -41,7 +41,10 @@ class ReconciliationTests(unittest.TestCase):
             self.assertEqual(changed['inspections'][0]['next_inspection_month'], '2026-09')
             self.assertEqual(changed['service_status_original'], 'Out of service')
             self.assertEqual(changed['notes'][0]['note_text'], 'Reviewed scope')
-            self.assertEqual(Store(result['backup']).get_asset(asset['id'])['inspections'][0]['next_inspection_month'], '2027-01')
+            from inspection_app.backups import restore_backup
+            restored = Store(Path(directory)/'restored.db')
+            restore_backup(restored, result['backup'])
+            self.assertEqual(restored.get_asset(asset['id'])['inspections'][0]['next_inspection_month'], '2027-01')
             with self.assertRaises(ValueError): apply_reconciliation(store, [update])
             self.assertEqual(store.get_asset(asset['id'])['version'], changed['version'])
 

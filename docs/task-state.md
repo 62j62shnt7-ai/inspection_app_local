@@ -12,7 +12,7 @@ Continue improving the local inspection app so it can import a complicated workb
 - Assets with unresolved issues remain visible in the master with warnings, but blocking issues exclude them from trusted snapshots.
 - An asset without a tag/asset number can qualify after explicit identity verification.
 - Trusted snapshots include eligible verified assets and prominently list excluded assets with reasons.
-- Applicable inspections need a month or an explicitly verified scheduling condition. Such conditions need a review-by month; when overdue, warn but retain eligibility.
+- Applicable inspections need a valid next month or a recorded scheduling condition. Condition review-by is optional; missing or elapsed review-by months produce no quality flag. Manual verification remains optional.
 - Reverify only fields changed by later edits/imports; preserve verification of unchanged fields.
 - For trust, require description, family, identifiable location/context, record status, and checked inspection applicability, plus explicit asset verification and no blocking checks.
 - First import support: currently supported original workbook layouts and app exports. Target scale: 10,000 assets.

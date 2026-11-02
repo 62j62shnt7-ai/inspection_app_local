@@ -26,3 +26,19 @@ The Windows executable, cmd.exe launcher, native Windows file locks, and Windows
 ## Update
 
 Close the running app. Extract inspection-app-windows-2026-11-01.zip to a new writable folder. Copy the existing data folder into the extracted inspection_app_local folder, then double-click Start Inspection App.bat. Keep the old folder until the new copy is verified. The operational database in the workspace was not changed by this review.
+
+## 2026-11-02 — compressed-backup flush fix
+
+A Windows save screenshot showed the generic HTTP 500 response. The new compressed-backup publication path reopened the staged file with `rb` before `os.fsync`. Windows flushing requires a writable file handle, so both the first protected save and clear can fail before the backup is published. The existing source-only `inspection_app_local.zip` also contains this defect and does not contain the Windows runtime. Use the new complete Windows package instead of mixing application files.
+
+Changed the staging handle to `r+b`, explicitly flushed it, and kept fsync, integrity checks, compression validation and atomic publication. Regression coverage emulates Windows' writable-handle requirement: it reproduced the backup error and the screenshot's exact HTTP 500 response before the fix, then passed raw/compressed backup restore and HTTP create/edit/clear/recovery after the fix. No operational data was used.
+
+Reference: Microsoft documents the GENERIC_WRITE requirement for FlushFileBuffers: https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-flushfilebuffers
+
+Native Windows execution and the reported Windows hang remain unverified on this macOS host. A complete-workbook clear is checked through live localhost HTTP with bounded request timeouts and recovery from the pre-clear backup. No UI behavior changes are included in this fix.
+
+### Clear performance and history preservation
+
+Profiling a disposable import of the 1,066-asset reference workbook found 1,136,357 JSON decodes: clear called peer identity invalidation once per removed asset, scanning the full asset table each time. Clear now bulk-invalidates evidence and resolved/accepted issues for the live asset set, then appends every original per-asset audit event. Historical retired-asset issues, open issues, evidence rows, snapshots, IDs and revision ordering are retained. A SQLite-trigger failure test confirms the whole operation rolls back.
+
+Live localhost clear plus pre-clear backup: 13.45 seconds before and 0.433 seconds after, with an immediately responsive follow-up GET and successful restoration of all 1,066 assets. Full host suite: 205 Python tests passed; Node suite: 78 passed. The complete Windows ZIP includes the runtime, matching application files, tests, checksums and WINDOWS-UPDATE.txt; no operational database or backups are included.

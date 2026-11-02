@@ -1,7 +1,7 @@
 'use strict';
 let reconRows=[], reconAliases={}, reconWorkbookName='', reconApplyChoices=new Map();
-function saveReconciliation(){try{localStorage.setItem('inspection-reconciliation-v1',JSON.stringify({name:reconWorkbookName,rows:reconRows}));return true}catch{return false}}
-function readReconciliation(){try{const saved=JSON.parse(localStorage.getItem('inspection-reconciliation-v1')||'null');return saved&&typeof saved.name==='string'&&Array.isArray(saved.rows)?saved:null}catch{return null}}
+function saveReconciliation(){try{localStorage.setItem('inspection-reconciliation-v1',JSON.stringify({dataEpoch:typeof dataEpoch==='string'?dataEpoch:'initial',name:reconWorkbookName,rows:reconRows}));return true}catch{return false}}
+function readReconciliation(){try{const saved=JSON.parse(localStorage.getItem('inspection-reconciliation-v1')||'null');return saved&&(saved.dataEpoch||'initial')===(typeof dataEpoch==='string'?dataEpoch:'initial')&&typeof saved.name==='string'&&Array.isArray(saved.rows)?saved:null}catch{return null}}
 function persistReconciliation(){const ok=saveReconciliation();$('#recon-saved').textContent=ok?'Saved in this browser · '+reconWorkbookName:'Could not save this review in the browser. Keep this page open and export the complete review CSV to preserve all selected values. The CSV is a reference copy and cannot be loaded back into this app.';$('#recon-saved').className=ok?'':'error'}
 try{reconAliases=JSON.parse(localStorage.getItem('inspection-recon-aliases')||'{}')}catch{}
 const reconKey=r=>[r.identifier,r.description,r.scope].map(x=>String(x||'').trim().toLowerCase()).join('|');

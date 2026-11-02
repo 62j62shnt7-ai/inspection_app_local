@@ -103,8 +103,6 @@ def validate_record(asset, current_month=None):
             if not scheduling_condition_present(inspection.get('scheduling_condition')):
                 if not any(f['field']==prefix+'next_inspection_month' for f in findings):
                     add('missing-schedule', prefix+'next_inspection_month', 'Supply a next month or scheduling condition')
-            elif current_month and inspection.get('condition_review_by') and inspection['condition_review_by'] <= current_month:
-                add('condition-review-due', prefix+'condition_review_by', 'Scheduling condition is due for review', 'warning')
         source_fields = source_review_fields(asset, inspection)
         if inspection.get('review_status')=='Review' and not source_fields:
             add('source-review', prefix+'review_status', inspection.get('review_reason') or 'Review inspection source evidence')
@@ -118,3 +116,34 @@ def validate_record(asset, current_month=None):
         if item.get('review_status')=='Review' and not imported_date_item(asset,item):
             add('source-review-item', 'review_items.'+str(item.get('review_id') or fingerprint(item)), item.get('reason') or 'Review source evidence')
     return findings
+
+
+def reconcile_import_reviews(asset):
+    """Resolve generated duplicate date warnings from current values, keeping evidence."""
+    findings = validate_record(asset)
+    for inspection in asset.get('inspections', []):
+        kind = inspection.get('inspection_type')
+        linked_summary = bool(source_review_fields(asset, inspection)) or inspection.get('review_summary_generated', False)
+        if linked_summary:
+            inspection['review_summary_generated'] = True
+        prefix = 'inspections.' + str(kind) + '.'
+        for item in asset.get('review_items', []):
+            if item.get('review_status') not in ('Review', 'Resolved') or not imported_date_item(asset, item):
+                continue
+            label = str(item.get('field', '')).removeprefix(str(kind) + ': ')
+            keys = {'last inspection': ('last_inspection_month',),
+                    'next inspection': ('next_inspection_month',),
+                    'date order': ('last_inspection_month', 'next_inspection_month')}.get(label)
+            if keys is None:
+                continue
+            related = [f for f in findings if f['field'] in {prefix + key for key in keys} and f['severity']=='blocking']
+            item['review_status'] = 'Review' if related else 'Resolved'
+        if linked_summary:
+            remaining = []
+            for label in ('last inspection', 'next inspection', 'date order'):
+                for item in asset.get('review_items', []):
+                    if item.get('field') == str(kind)+': '+label and item.get('review_status')=='Review':
+                        remaining.append(item['reason'] if label=='date order' else label+': '+item['reason'])
+            inspection['review_status'] = 'Review' if remaining else None
+            inspection['review_reason'] = ' '.join(remaining)
+    return asset

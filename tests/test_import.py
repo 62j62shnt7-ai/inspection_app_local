@@ -42,7 +42,10 @@ class ImportTests(unittest.TestCase):
             preview = preview_import(store, WORKBOOK)
             result = apply_import(store, preview['token'], mode='replace')
             with self.assertRaises(KeyError): store.get_asset(extra['id'])
-            self.assertEqual(Store(result['backup']).get_asset(extra['id'])['name'], 'Extra')
+            from inspection_app.backups import restore_backup
+            restored = Store(Path(tmp)/'restored.db')
+            restore_backup(restored, result['backup'])
+            self.assertEqual(restored.get_asset(extra['id'])['name'], 'Extra')
             self.assertEqual(store.get_asset('A03-0015')['id'], 'A03-0015')
 
     def test_reviewed_workbook_imports_with_all_records(self):

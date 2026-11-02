@@ -1,21 +1,89 @@
-from contextlib import closing
+from contextlib import closing, contextmanager
 from datetime import datetime
 from pathlib import Path
 import secrets
 import re
 import sqlite3
 import json
+import gzip
+import os
+import shutil
+import tempfile
+import zlib
+import hashlib
 from .store import serialized, initialize_version_clock
 
-_BACKUP_FILENAME=re.compile(r'inspection-\d{8}-\d{6}-[0-9a-f]{8}\.db\Z')
+_BACKUP_FILENAME=re.compile(r'inspection-(?:migration-)?\d{8}-\d{6}-[0-9a-f]{8}\.db(?:\.gz)?\Z')
+MAX_BACKUP_BYTES = 1024 * 1024 * 1024
+
+
+def compact_database_copy(source_path, destination):
+    """Compact only a snapshot; never VACUUM the operational database."""
+    with closing(sqlite3.connect(Path(source_path).resolve().as_uri()+'?mode=ro', uri=True)) as source, closing(sqlite3.connect(destination)) as target:
+        source.backup(target)
+        target.execute('VACUUM')
+        if target.execute('PRAGMA integrity_check').fetchone()[0] != 'ok':
+            raise ValueError('Backup failed integrity validation')
+
+
+@contextmanager
+def materialized_database(path):
+    """Yield raw SQLite, detecting gzip by content even for uploaded .db files."""
+    path = Path(path)
+    with path.open('rb') as stream:
+        compressed = stream.read(2) == b'\x1f\x8b'
+    if not compressed:
+        yield path
+        return
+    with tempfile.TemporaryDirectory() as tmp:
+        database = Path(tmp)/'backup.db'
+        try:
+            with gzip.open(path, 'rb') as source, database.open('wb') as target:
+                total = 0
+                while True:
+                    chunk = source.read(min(1024*1024, MAX_BACKUP_BYTES-total+1))
+                    if not chunk:
+                        break
+                    total += len(chunk)
+                    if total > MAX_BACKUP_BYTES:
+                        raise ValueError('Expanded backup is too large (1 GiB limit)')
+                    target.write(chunk)
+        except (OSError, EOFError, zlib.error) as exc:
+            raise ValueError('Compressed backup is damaged or incomplete') from exc
+        yield database
 
 @serialized
-def create_backup(store):
+def create_backup(store, compress=False):
     folder = Path(store.db_path).parent / 'backups'
     folder.mkdir(parents=True, exist_ok=True)
-    path = folder / ('inspection-' + datetime.now().strftime('%Y%m%d-%H%M%S') + '-' + secrets.token_hex(4) + '.db')
-    with closing(sqlite3.connect(store.db_path)) as source, closing(sqlite3.connect(path)) as target:
-        source.backup(target)
+    path = folder / ('inspection-' + datetime.now().strftime('%Y%m%d-%H%M%S') + '-' + secrets.token_hex(4) + ('.db.gz' if compress else '.db'))
+    # Same-filesystem staging keeps interrupted writes out of the managed list.
+    with tempfile.TemporaryDirectory(prefix='.backup-', dir=folder) as tmp:
+        database = Path(tmp)/'snapshot.db'
+        compact_database_copy(store.db_path, database)
+        staged = database
+        if compress and database.stat().st_size > MAX_BACKUP_BYTES:
+            # Keep large databases independently restorable without requiring an
+            # unbounded decompressor or blocking the edit that needs protection.
+            compress = False
+            path = path.with_suffix('')
+        if compress:
+            staged = Path(tmp)/'snapshot.db.gz'
+            with database.open('rb') as source, gzip.open(staged, 'wb', compresslevel=6) as target:
+                shutil.copyfileobj(source, target)
+            # Verify gzip CRC and the exact compacted payload before publication.
+            with materialized_database(staged) as expanded:
+                def digest(file):
+                    with file.open('rb') as stream:
+                        return hashlib.file_digest(stream, 'sha256').digest()
+                if digest(expanded) != digest(database):
+                    raise ValueError('Compressed backup failed validation')
+        # Windows FlushFileBuffers requires a writable handle; opening read-only
+        # makes every protected save/clear fail before its backup is published.
+        with staged.open('r+b') as stream:
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(staged, path)
     return path
 
 
@@ -66,8 +134,15 @@ def restore_backup(store, path):
     path = Path(path).resolve()
     if not path.is_file() or path == Path(store.db_path).resolve():
         raise ValueError('Select an existing backup file')
+    with materialized_database(path) as database:
+        return _restore_database(store, database)
+
+
+def _restore_database(store, path):
     try:
         validate_database(store,path)
+        from .cleanup import recover_pending_cleanup
+        recover_pending_cleanup(store)
         # Read-only mode prevents accidentally creating a missing backup.
         with closing(sqlite3.connect(path.as_uri() + '?mode=ro', uri=True)) as source:
             if source.execute('PRAGMA integrity_check').fetchone()[0] != 'ok':
@@ -95,6 +170,8 @@ def restore_backup(store, path):
                 staged.execute('CREATE TABLE IF NOT EXISTS backup_settings (id INTEGER PRIMARY KEY CHECK(id=1),contents TEXT NOT NULL)')
                 staged.execute('DELETE FROM backup_settings')
                 settings={'folder':local_settings['folder']} if local_settings.get('folder') else {}
+                if local_settings.get('data_epoch'):
+                    settings['data_epoch']=local_settings['data_epoch']
                 settings.update(local_success=False,independent_success=False,error='Restored database: run a backup and test the independent copy destination')
                 staged.execute('INSERT INTO backup_settings VALUES (1,?)',(json.dumps(settings),))
                 staged.execute("UPDATE import_batches SET state='cancelled' WHERE state='staged'")
@@ -113,7 +190,7 @@ def restore_backup(store, path):
 def list_backups(store):
     folder = Path(store.db_path).parent / 'backups'
     if not folder.is_dir(): return []
-    files = [p for p in folder.glob('inspection-*.db') if _BACKUP_FILENAME.fullmatch(p.name) and p.is_file() and not p.is_symlink()]
+    files = [p for p in folder.glob('inspection-*') if _BACKUP_FILENAME.fullmatch(p.name) and p.is_file() and not p.is_symlink()]
     return [{'filename': p.name, 'modified': datetime.fromtimestamp(p.stat().st_mtime).isoformat(timespec='seconds'), 'size': p.stat().st_size} for p in sorted(files, key=lambda p: p.stat().st_mtime, reverse=True)]
 
 

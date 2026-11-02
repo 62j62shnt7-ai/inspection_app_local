@@ -26,6 +26,14 @@ class QualityCriteriaTests(unittest.TestCase):
             with self.subTest(condition=condition):
                 self.assertEqual(validate_record(self.asset(next_inspection_month=None,scheduling_condition=condition,next_original=condition)), [])
 
+    def test_condition_review_by_is_optional_in_core_verification_fields(self):
+        from inspection_app.quality import required_fields
+        for month in (None, '2025-01', '2030-01'):
+            asset = self.asset(next_inspection_month=None, scheduling_condition='OOS', condition_review_by=month)
+            with self.subTest(month=month):
+                self.assertNotIn('inspections.OSI.condition_review_by', required_fields(asset))
+                self.assertEqual(validate_record(asset, current_month='2026-11'), [])
+
     def test_blank_and_placeholder_schedule_conditions_are_flagged(self):
         for condition in (None,'','   ','Undated','Dated','XX','Unknown','—'):
             with self.subTest(condition=condition):

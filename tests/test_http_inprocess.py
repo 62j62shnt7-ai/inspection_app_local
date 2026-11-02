@@ -11,6 +11,138 @@ from inspection_app.server import create_server
 from inspection_app.store import Store
 
 class HttpInProcessTests(unittest.TestCase):
+    def test_cleanup_reset_rejects_old_browser_and_old_preview(self):
+        import re
+        self.store.save_asset(None, {'name':'Reset sample','family':'Flowline'}, None)
+        _,page = self.request('GET','/')
+        token = re.search(rb'name="app-token" content="([^"]+)"',page).group(1).decode()
+        headers = {'X-App-Token':token,'X-Data-Epoch':'initial','Content-Type':'application/json'}
+        self.assertEqual(self.request('POST','/api/data/preview',b'{"category":"reset"}')[0],403)
+        status,body = self.request('POST','/api/data/preview',b'{"category":"reset"}',headers)
+        self.assertEqual(status,200,body)
+        preview = json.loads(body)
+        status,body = self.request('POST','/api/data/delete',json.dumps({'preview_id':preview['preview_id'],'confirmation':preview['confirmation']}).encode(),headers)
+        self.assertEqual(status,200,body)
+        result = json.loads(body)
+        self.assertTrue(result['reload_required'])
+        status,body = self.request('POST','/api/assets',b'{"name":"Old browser","family":"Flowline"}',headers)
+        self.assertEqual(status,400);self.assertIn('Reload',json.loads(body)['error'])
+        headers['X-Data-Epoch'] = result['data_epoch']
+        status,body = self.request('POST','/api/assets',b'{"name":"Fresh browser","family":"Flowline"}',headers)
+        self.assertEqual(status,201,body)
+        self.assertEqual(self.request('POST','/api/data/delete',json.dumps({'preview_id':preview['preview_id'],'confirmation':preview['confirmation']}).encode(),headers)[0],400)
+        # Restoring data must not reactivate pre-reset pages.
+        with open(result['recovery'],'rb') as stream:
+            self.assertEqual(self.request('POST','/api/recovery/restore',stream.read(),headers)[0],200)
+        headers['X-Data-Epoch'] = 'initial'
+        status,body = self.request('POST','/api/assets',b'{"name":"Stale after restore","family":"Flowline"}',headers)
+        self.assertEqual(status,400,body)
+
+    def test_save_and_clear_with_windows_flush_requirement(self):
+        import re
+        from windows_io import windows_flush_requirement
+        _, page = self.request('GET', '/')
+        token = re.search(rb'name="app-token" content="([^"]+)"', page).group(1).decode()
+        headers = {'X-App-Token':token, 'Content-Type':'application/json'}
+        with windows_flush_requirement():
+            status, body = self.request('POST', '/api/assets', json.dumps({'name':'Windows save', 'family':'Flowline'}).encode(), headers)
+            self.assertEqual(status, 201, body)
+            asset = json.loads(body)
+            status, body = self.request('PUT', '/api/assets/'+asset['id'], json.dumps({'asset':{'name':'Windows edit'},'version':asset['version']}).encode(), headers)
+            self.assertEqual(status, 200, body)
+            status, body = self.request('POST', '/api/clear', b'{"confirmation":"CLEAR"}', headers)
+            self.assertEqual(status, 200, body)
+        self.assertEqual(json.loads(self.request('GET', '/api/assets')[1]), [])
+        from inspection_app.backups import restore_backup
+        restore_backup(self.store, json.loads(body)['backup'])
+        self.assertEqual(self.store.get_asset(asset['id'])['name'], 'Windows edit')
+
+    def test_database_reads_wait_for_mutation_lock(self):
+        entered = threading.Event()
+        original = __import__('inspection_app.server', fromlist=['read_summaries']).read_summaries
+        def read(conn):
+            entered.set()
+            return original(conn)
+        with patch('inspection_app.server.read_summaries', side_effect=read):
+            with self.store._lock:
+                result = []
+                thread = threading.Thread(target=lambda: result.append(self.request('GET', '/api/assets?summary=1')))
+                thread.start()
+                overlapped = entered.wait(0.2)
+            thread.join(5)
+        self.assertFalse(overlapped, 'Database read overlapped the mutation lock')
+        self.assertFalse(thread.is_alive())
+        self.assertEqual(result[0][0], 200)
+
+    def test_disconnected_response_does_not_raise_or_send_twice(self):
+        from unittest.mock import Mock
+        for error in (ConnectionAbortedError(10053, 'aborted'), BrokenPipeError(), ConnectionResetError()):
+            handler = object.__new__(self.handler)
+            handler.send_response = Mock()
+            handler.send_header = Mock()
+            handler.end_headers = Mock()
+            handler.wfile = Mock()
+            handler.wfile.write.side_effect = error
+            with self.subTest(error=type(error).__name__):
+                handler.respond(200, {'saved': True})
+                self.assertTrue(handler.close_connection)
+                handler.send_response.assert_called_once_with(200)
+
+    def test_response_is_sent_after_database_lock_is_released(self):
+        from unittest.mock import Mock
+        handler = object.__new__(self.handler)
+        lock_available = threading.Event()
+        def send(status, payload, content_type):
+            def acquire():
+                with self.store._lock:
+                    lock_available.set()
+            thread = threading.Thread(target=acquire)
+            thread.start()
+            self.assertTrue(lock_available.wait(1), 'Response still holds the database lock')
+            thread.join(2)
+        handler.respond = Mock(wraps=handler.respond)
+        handler.send_response = Mock()
+        handler.send_header = Mock()
+        handler.end_headers = Mock()
+        handler.wfile = Mock()
+        handler.wfile.write.side_effect = lambda body: send(200, body, '')
+        handler.run_locked(lambda: handler.respond(200, {'ok': True}))
+        self.assertTrue(lock_available.is_set())
+
+    def test_busy_database_returns_retryable_error(self):
+        import sqlite3
+        with patch('inspection_app.server.read_summaries', side_effect=sqlite3.OperationalError('database is locked')):
+            status, body = self.request('GET', '/api/assets?summary=1')
+        self.assertEqual(status, 503)
+        self.assertIn('Database is busy', json.loads(body)['error'])
+
+    def test_review_preview_resolves_without_saving_and_requires_token(self):
+        import re
+        from test_review_resolution import ReviewResolutionTests
+        asset=ReviewResolutionTests().asset()
+        asset['inspections'][0]['last_inspection_month']='2019-06'
+        body=json.dumps(asset).encode()
+        self.assertEqual(self.request('POST','/api/assets/review-preview',body)[0],403)
+        _,page=self.request('GET','/')
+        token=re.search(rb'name="app-token" content="([^"]+)"',page).group(1).decode()
+        status,data=self.request('POST','/api/assets/review-preview',body,{'X-App-Token':token})
+        self.assertEqual(status,200)
+        preview=json.loads(data)
+        self.assertEqual(preview['review_items'][0]['review_status'],'Resolved')
+        self.assertEqual(preview['review_items'][1]['review_status'],'Review')
+        self.assertEqual(json.loads(self.request('GET','/api/assets')[1]),[])
+
+    def test_year_only_preview_requires_token_and_changes_no_asset(self):
+        import re
+        asset=self.store.save_asset(None,{'name':'Line','family':'Flowline','inspections':[{'inspection_type':'OSI','applicable':'Yes','next_original':'2025'}]},None)
+        self.assertEqual(self.request('POST','/api/bulk/year-only/preview',b'{}')[0],403)
+        _,page=self.request('GET','/')
+        token=re.search(rb'name="app-token" content="([^"]+)"',page).group(1).decode()
+        status,data=self.request('POST','/api/bulk/year-only/preview',b'{}',{'X-App-Token':token})
+        self.assertEqual(status,200)
+        self.assertEqual(json.loads(data)['date_count'],1)
+        self.assertEqual(self.store.get_asset(asset['id']),asset)
+
     def test_main_browser_script_includes_import_review_without_extra_route(self):
         status, page = self.request('GET', '/')
         self.assertEqual(status, 200)
@@ -136,8 +268,24 @@ class HttpInProcessTests(unittest.TestCase):
         status, data = self.request('POST', '/api/clear', b'{"confirmation":"CLEAR"}', headers)
         self.assertEqual(status, 200)
         self.assertEqual(json.loads(self.request('GET', '/api/assets')[1]), [])
-        with closing(sqlite3.connect(json.loads(data)['backup'])) as conn, conn:
-            self.assertEqual(conn.execute('SELECT name FROM assets WHERE id=?', (asset['id'],)).fetchone()[0], 'Keep safe')
+        from inspection_app.backups import restore_backup
+        restore_backup(self.store, json.loads(data)['backup'])
+        self.assertEqual(self.store.get_asset(asset['id'])['name'], 'Keep safe')
+
+    def test_uploaded_compressed_and_legacy_database_backups_restore(self):
+        import re
+        from inspection_app.backups import create_backup
+        asset = self.store.save_asset(None, {'name':'Upload original', 'family':'Flowline'}, None)
+        _, page = self.request('GET', '/')
+        token = re.search(rb'name="app-token" content="([^"]+)"', page).group(1).decode()
+        for compressed in (False, True):
+            backup = create_backup(self.store, compress=compressed)
+            current = self.store.get_asset(asset['id'])
+            self.store.save_asset(asset['id'], {'name':'Changed'}, current['version'])
+            status, body = self.request('POST', '/api/restore', backup.read_bytes(), {'X-App-Token':token})
+            self.assertEqual(status, 200, body)
+            self.assertEqual(self.store.get_asset(asset['id'])['name'], 'Upload original')
+            self.assertTrue(Path(json.loads(body)['safety_backup']).is_file())
 
     def test_list_and_restore_saved_backups_rejects_traversal(self):
         import re

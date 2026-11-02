@@ -2,6 +2,8 @@
 
 This is a **testing build**. Do not rely on it as the only copy of an inspection plan until the launch and data workflows have been verified on your computer. Keep the original workbook and independent backups.
 
+The [2 November full app review](docs/app-review-2026-11-02.md) found nine open defects, including an unrelated save clearing an independent inspection concern and changing snapshot eligibility. Passing automated tests do not close those findings. See the [prioritized repair plan](docs/superpowers/plans/2026-11-02-app-review-fixes.md) before relying on this candidate's cleanup, recovery, interchange and reviewed-update workflows.
+
 Use the **Light mode / Dark mode** control in the header to switch themes from any screen. The choice is remembered in this browser; **Data & backups → Appearance** also lets you follow the system preference.
 
 ## macOS

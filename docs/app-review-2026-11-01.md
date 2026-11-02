@@ -1,5 +1,7 @@
 # App review — 2026-11-01
 
+Current follow-up: the [2 November full review](app-review-2026-11-02.md) covers source checkpoint `b9ccfa1` and records nine open findings with a repair plan. The resolved findings and test counts below describe the earlier review only.
+
 Follow-up: the three findings below have been fixed. Restore now assigns versions above a persistent watermark and serializes mutations; ordinary source/dashboard navigation clears reconciliation-only restrictions; complete review CSV exports include every plan row and all selected changes. The CSV is explicitly described as a reference copy, not an importable review backup. Final verification: 32 Python tests passed with the bundled macOS runtime and loopback access; 42 JavaScript tests passed; `git diff --check` passed. Existing resource-cleanup warnings remain, and Windows execution is still unverified. The original findings below document the reviewed behavior before these fixes.
 
 The current test suite passes, but the app has functional gaps that prevent an unqualified readiness sign-off. This review did not change application code or the working database.

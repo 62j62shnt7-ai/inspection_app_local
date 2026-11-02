@@ -2,6 +2,10 @@
 
 The application maintains asset identities and month-level inspection schedules. It does not certify equipment safety, inspection completion or regulatory compliance.
 
+## Current implementation caveats — 2 November 2026
+
+This contract defines required behavior. The [full review](app-review-2026-11-02.md) found gaps: R1 clears independent concerns on unrelated saves; R7/R8 break evidence-preserving interchange after selected deletion or for unassigned reviews; R2/R3/R9 affect reviewed browser mutations and epoch-aware export; R4–R6 affect cleanup/recovery. These findings remain open under the [repair plan](superpowers/plans/2026-11-02-app-review-fixes.md). They do not change owner-approved rules-version-2 criteria or authorize dropping evidence.
+
 ## Existing interchange
 
 The seven existing linked sheets remain supported: Assets, Inspection Plan, Technical Details, Notes & Actions, Review Items, Source Cells and Field Map. Import Decisions is optional. Original-layout mappings remain in `inspection_app/legacy_layouts.json`; header validation and source sheet selection remain authoritative. Permanent asset IDs are never regenerated because source rows move. Package membership alone is insufficient identity evidence.

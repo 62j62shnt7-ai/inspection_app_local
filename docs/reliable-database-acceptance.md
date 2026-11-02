@@ -1,6 +1,14 @@
 # Reliable master database candidate — 2 November 2026
 
-Implementation remains a testing candidate on `codex/reliable-master-database`. The working checkout already contained substantial uncommitted import and platform work; it has been preserved, and no operational database was migrated during development.
+Implementation remains a testing candidate on `codex/reliable-master-database`. Accumulated source, tests and documentation were committed as `b9ccfa1` before the 2 November full review. No operational database was migrated for that review; existing distribution ZIPs were left uncommitted and untouched.
+
+## Latest full review — 2 November 2026
+
+The [full review](app-review-2026-11-02.md) confirmed **one P1 and eight P2 findings**, all open. The P1 clears a newly imported independent inspection concern on an unrelated save and changes snapshot eligibility. Other findings concern stale mutation previews, duplicate new saves, cleanup restart after destination changes, corrupt-archive/legacy-backup recovery, retained workbook references/reviews and yearly export after reset. See the [fix plan](superpowers/plans/2026-11-02-app-review-fixes.md).
+
+Fresh baseline: **232 Python and 83 Node tests passed, zero skipped**. Python application/tool syntax and all four browser-script syntax checks passed. The disposable 10,000-asset benchmark measured register page/filter at 0.153/0.161 seconds and quality first/warm at 0.344/0.339 seconds on macOS arm64 / Python 3.14.6; this does not establish native Windows performance.
+
+A live disposable browser checked dashboard/quality distinctions, year-only preview/apply/undo, saved snapshot inclusion/exclusion counts, compressed-backup listings and canceled reset preview. Existing tests missed the newly reproduced failures. Repair R1–R9 and pass their regressions before release consideration. Native platform, accessibility, owner and source-content gates below remain open; historical checkpoints do not supersede this assessment.
 
 ## Implemented candidate
 

@@ -123,3 +123,34 @@ test('removing a workbook clears its saved review without touching the master',(
 test('cancelling workbook removal preserves the saved review',()=>{
  const data=new Map([['inspection-reconciliation-v1','saved']]);const rows=[{row:4}];const ctx=vm.createContext({reconRows:rows,localStorage:{removeItem:k=>data.delete(k)},confirm:()=>false});vm.runInContext(fn('removeReconciliation'),ctx);ctx.removeReconciliation();assert.equal(data.get('inspection-reconciliation-v1'),'saved');assert.equal(ctx.reconRows,rows);
 });
+
+test('complete review export retains hidden rows and every proposed field',()=>{
+ const rows=[{row:2,description:'Tank',chosen:'a',inspection_type:'OSI',confirmed:true,excluded:false,version:7,changes:{last_inspection_month:'2026-01',next_inspection_month:'2027-02',service_status_original:'Out of service',remark:'Manual, "note"\nsecond line'},candidates:[]},{row:3,description:'Hidden by filter',confirmed:false,excluded:true,candidates:[],changes:{remark:'Keep hidden note'}}];
+ const ctx=vm.createContext({reconRows:rows,reconAsset:r=>r.chosen?{id:'a',name:'Tank'}:null,reconDue:()=>'',reconStatus:()=> 'confirmed',reconLabel:x=>x});
+ vm.runInContext(fn('reconciliationExportRows'),ctx);
+ const [header,...exported]=ctx.reconciliationExportRows();
+ assert.equal(exported.length,2);
+ const record=Object.fromEntries(header.map((h,i)=>[h,exported[0][i]]));
+ assert.equal(record['Selected last inspection month'],'2026-01');assert.equal(record['Selected next inspection month'],'2027-02');
+ assert.equal(record['Selected service status'],'Out of service');assert.equal(record['Selected remark'],rows[0].changes.remark);
+ assert.equal(record['Master version at confirmation'],7);assert.equal(record['Confirmed'],true);
+ assert.equal(exported[1][header.indexOf('Selected remark')],'Keep hidden note');
+});
+
+test('complete review export retains the missing-from-plan worklist',()=>{
+ const ctx=vm.createContext({reconRows:[],reconAsset:()=>null,reconDue:()=>'',reconStatus:()=>'',reconLabel:x=>x});
+ vm.runInContext(fn('reconciliationExportRows'),ctx);
+ const [header,...rows]=ctx.reconciliationExportRows([{asset:{id:'absent',name:'Unplanned tank'},inspection:{inspection_type:'OSI',next_inspection_month:'2027-01'}}]);
+ assert.equal(rows.length,1);assert.equal(rows[0][header.indexOf('Status')],'Missing from plan');
+ assert.equal(rows[0][header.indexOf('Matched asset ID')],'absent');assert.equal(rows[0][header.indexOf('Master due month')],'2027-01');
+});
+
+test('downloaded review CSV keeps multiline selected remarks and escapes formulas',async()=>{
+ let downloaded,clicked=false;const nodes={'#recon-export':{},'#recon-status':{value:'pending'}};
+ const row={row:2,description:'=SUM(A1)',confirmed:true,changes:{remark:'Manual, "note"\nsecond line'},candidates:[]};
+ const ctx=vm.createContext({reconRows:[row],$:s=>nodes[s],reconAsset:()=>null,reconDue:()=>'',reconStatus:()=> 'confirmed',reconLabel:x=>x,Blob,URL:{createObjectURL:b=>{downloaded=b;return 'blob:test'},revokeObjectURL(){}},el:()=>({click(){clicked=true}}),setTimeout(){}});
+ vm.runInContext(fn('reconciliationExportRows'),ctx);
+ vm.runInContext(source.slice(source.indexOf("$('#recon-export').onclick="),source.indexOf('\n\nfunction completeReconUpdates')),ctx);
+ nodes['#recon-export'].onclick();assert.equal(clicked,true);const csv=await downloaded.text();
+ assert.ok(csv.includes('"Selected remark"'));assert.ok(csv.includes('"Manual, ""note""\nsecond line"'));assert.ok(csv.includes('"\'=SUM(A1)"'));
+});

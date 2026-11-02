@@ -27,3 +27,14 @@ class RoundTripTests(unittest.TestCase):
             self.assertEqual(b['inspections'], a['inspections'])
             self.assertEqual(b['source_cells'], a['source_cells'])
             self.assertEqual(b['notes'], a['notes'])
+
+    def test_long_unicode_note_roundtrips_without_excel_truncation(self):
+        from inspection_app.exports import export_workbook
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp); source=Store(root/'source.db')
+            text='Engineering evidence\n'+'é'*40000+' IMPORTANT END'
+            asset=source.save_asset(None,{'name':'Long evidence','family':'Flowline','notes':[{'note_id':'n1','note_type':'Remark','note_text':text}]},None)
+            path=export_workbook(source,root/'long.xlsx')
+            target=Store(root/'target.db')
+            apply_import(target,preview_import(target,path)['token'])
+            self.assertEqual(target.get_asset(asset['id'])['notes'][0]['note_text'],text)

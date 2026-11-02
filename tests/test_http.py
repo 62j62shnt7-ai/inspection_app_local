@@ -21,8 +21,11 @@ class ServerTests(unittest.TestCase):
             try:
                 with urlopen(url) as response:
                     self.assertEqual(json.load(response), [])
+                with urlopen('http://127.0.0.1:%s/api/import/history' % server.server_port) as response:
+                    self.assertEqual(json.load(response), [])
                 request = Request(url, data=b'{}', headers={'Origin':'https://evil.example','Content-Type':'application/json'}, method='POST')
                 with self.assertRaises(HTTPError) as failure: urlopen(request)
                 self.assertEqual(failure.exception.code, 403)
+                failure.exception.close()
             finally:
                 server.shutdown(); server.server_close(); thread.join()

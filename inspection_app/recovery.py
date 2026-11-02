@@ -1,0 +1,172 @@
+"""Portable checksummed recovery packages and independent backup status."""
+from contextlib import closing
+from datetime import datetime, date, timezone
+from pathlib import Path
+import hashlib
+import json
+import os
+import secrets
+import sqlite3
+import tempfile
+from zipfile import ZipFile, ZIP_DEFLATED, BadZipFile
+from .store import serialized
+from .backups import create_backup, restore_backup
+
+
+def _settings(conn):
+    conn.execute('CREATE TABLE IF NOT EXISTS backup_settings (id INTEGER PRIMARY KEY CHECK(id=1), contents TEXT NOT NULL)')
+    row=conn.execute('SELECT contents FROM backup_settings WHERE id=1').fetchone()
+    return json.loads(row[0]) if row else {}
+
+
+def _save_settings(conn,settings):
+    conn.execute('INSERT OR REPLACE INTO backup_settings VALUES (1,?)',(json.dumps(settings),))
+
+
+@serialized
+def invalidate_deleted_local_backup(store,deleted_paths):
+    deleted={str(Path(path).resolve()) for path in deleted_paths}
+    if not deleted:return False
+    with closing(sqlite3.connect(store.db_path)) as conn,conn:
+        settings=_settings(conn)
+        recorded=settings.get('local_path')
+        if not recorded or str(Path(recorded).resolve()) not in deleted:return False
+        for key in ('day','local_path','local_at'):settings.pop(key,None)
+        settings['local_success']=False
+        _save_settings(conn,settings)
+        return True
+
+
+@serialized
+def backup_status(store):
+    with closing(sqlite3.connect(store.db_path)) as conn,conn:
+        return _settings(conn)
+
+
+@serialized
+def configure_backup_folder(store,folder):
+    if not isinstance(folder,str) or not folder.strip(): raise ValueError('Enter an existing folder path')
+    destination=Path(folder).expanduser().resolve()
+    if not destination.is_dir(): raise ValueError('Choose an existing writable folder')
+    if destination==Path(store.db_path).resolve().parent or destination==Path(store.db_path).resolve().parent/'backups':
+        raise ValueError('Choose a separate folder for the independent copy')
+    # Prove access without overwriting user files.
+    with tempfile.TemporaryFile(dir=destination): pass
+    with closing(sqlite3.connect(store.db_path)) as conn,conn:
+        settings=_settings(conn)
+        if settings.get('folder')!=str(destination) or not settings.get('independent_success'):
+            for key in ('day','independent_at','independent_path'):settings.pop(key,None)
+            settings.update(independent_success=False,error='Backup folder selected. Run Back up and test copy to verify it.')
+        settings['folder']=str(destination);_save_settings(conn,settings)
+    return backup_status(store)
+
+
+@serialized
+def export_master_package(store,destination):
+    destination=Path(destination)
+    with tempfile.TemporaryDirectory() as tmp:
+        database=Path(tmp)/'master.db'
+        with closing(sqlite3.connect(store.db_path)) as source,closing(sqlite3.connect(database)) as target:
+            source.backup(target)
+        files={'master.db':database}
+        with closing(sqlite3.connect(database)) as conn:
+            has_batches=conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='import_batches'").fetchone()
+            required={r[0] for r in conn.execute("SELECT digest FROM import_batches WHERE state IN ('committed','staged')")} if has_batches else set()
+        for digest in required:
+            archive=Path(store.db_path).parent/'source-archives'/(digest+'.xlsx')
+            if not archive.is_file():raise ValueError('Required source archive is missing: '+digest)
+        archives=Path(store.db_path).parent/'source-archives'
+        if archives.is_dir():
+            for path in archives.glob('*.xlsx'):
+                if path.is_symlink(): raise ValueError('Source archive cannot be a symbolic link')
+                if hashlib.sha256(path.read_bytes()).hexdigest()!=path.stem:
+                    raise ValueError('Source archive checksum mismatch: '+path.name)
+                files['source-archives/'+path.name]=path
+        manifest={'format':'inspection-master-recovery','version':1,'created_at':datetime.now(timezone.utc).isoformat(),
+                  'files':{name:hashlib.sha256(path.read_bytes()).hexdigest() for name,path in files.items()}}
+        fd,temporary=tempfile.mkstemp(dir=destination.parent,suffix='.partial');os.close(fd)
+        try:
+            with ZipFile(temporary,'w',ZIP_DEFLATED) as package:
+                package.writestr('manifest.json',json.dumps(manifest,ensure_ascii=False))
+                for name,path in files.items():package.write(path,name)
+            validate_restore_package(temporary)
+            os.replace(temporary,destination)
+        finally:Path(temporary).unlink(missing_ok=True)
+    return destination
+
+
+def validate_restore_package(path):
+    try:
+        with ZipFile(path) as package:
+            names=package.namelist()
+            if len(names)!=len(set(names)): raise ValueError('Duplicate recovery package entries')
+            if sum(info.file_size for info in package.infolist())>1024*1024*1024: raise ValueError('Recovery package is too large')
+            manifest=json.loads(package.read('manifest.json'))
+            if manifest.get('format')!='inspection-master-recovery' or manifest.get('version')!=1 or 'master.db' not in manifest.get('files',{}):
+                raise ValueError('Unsupported recovery package')
+            if set(names)!=set(manifest['files'])|{'manifest.json'}: raise ValueError('Recovery package inventory mismatch')
+            for name,digest in manifest['files'].items():
+                if name!='master.db' and not (name.startswith('source-archives/') and len(name.split('/'))==2 and name.split('/')[1]==digest+'.xlsx'):
+                    raise ValueError('Unsafe recovery package entry')
+                if hashlib.sha256(package.read(name)).hexdigest()!=digest: raise ValueError('Recovery package checksum mismatch')
+            with tempfile.TemporaryDirectory() as tmp:
+                database=Path(tmp)/'master.db';database.write_bytes(package.read('master.db'))
+                with closing(sqlite3.connect(database)) as conn:
+                    has_batches=conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='import_batches'").fetchone()
+                    if has_batches:
+                        for (digest,) in conn.execute("SELECT digest FROM import_batches WHERE state IN ('committed','staged')"):
+                            if 'source-archives/'+digest+'.xlsx' not in manifest['files']:raise ValueError('Required source archive is missing from recovery package')
+            return manifest
+    except (BadZipFile,KeyError,TypeError,json.JSONDecodeError) as exc:
+        raise ValueError('Invalid recovery package') from exc
+
+
+@serialized
+def restore_master_package(store,path):
+    manifest=validate_restore_package(path)
+    # Validate the database before installing any archives or replacing live data.
+    with tempfile.TemporaryDirectory() as tmp,ZipFile(path) as package:
+        database=Path(tmp)/'master.db';database.write_bytes(package.read('master.db'))
+        from .backups import validate_database
+        validate_database(store,database)
+        folder=Path(store.db_path).parent/'source-archives';folder.mkdir(exist_ok=True)
+        installed=[]
+        try:
+            for name in manifest['files']:
+                if not name.startswith('source-archives/'):continue
+                target=folder/Path(name).name
+                if target.exists():
+                    if hashlib.sha256(target.read_bytes()).hexdigest()!=manifest['files'][name]:raise ValueError('Existing archive checksum mismatch')
+                    continue
+                fd,temporary=tempfile.mkstemp(dir=folder,suffix='.partial')
+                try:
+                    with os.fdopen(fd,'wb') as stream:stream.write(package.read(name));stream.flush();os.fsync(stream.fileno())
+                    os.replace(temporary,target);installed.append(target)
+                finally:Path(temporary).unlink(missing_ok=True)
+            result=restore_backup(store,database)
+        except Exception:
+            for target in installed:target.unlink(missing_ok=True)
+            raise
+    return {**result,'archives_restored':len(installed),'warning':None}
+
+
+@serialized
+def automatic_backup(store,force=False):
+    settings=backup_status(store)
+    today=date.today().isoformat()
+    if not force and settings.get('day')==today:return settings
+    local=create_backup(store)
+    settings.update(day=today,local_success=True,local_path=str(local),local_at=datetime.now(timezone.utc).isoformat(),independent_success=False,error=None)
+    folder=settings.get('folder')
+    if folder:
+        try:
+            destination=Path(folder)
+            if not destination.is_dir():raise ValueError('Independent backup folder is unavailable')
+            target=destination/('inspection-recovery-'+datetime.now().strftime('%Y%m%d-%H%M%S')+'-'+secrets.token_hex(4)+'.zip')
+            export_master_package(store,target)
+            settings.update(independent_success=True,independent_at=datetime.now(timezone.utc).isoformat(),independent_path=str(target))
+        except (OSError,ValueError,sqlite3.DatabaseError) as exc:
+            settings['error']=str(exc)
+    else:settings['error']='Choose an independent backup folder in Data & backups'
+    with closing(sqlite3.connect(store.db_path)) as conn,conn:_save_settings(conn,settings)
+    return settings

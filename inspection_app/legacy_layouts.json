@@ -1,0 +1,916 @@
+{
+  "Vessels & TKs": [
+    {
+      "source_column": "B",
+      "source_heading": "SN",
+      "destination": "Assets",
+      "field_id": "S01_B"
+    },
+    {
+      "source_column": "C",
+      "source_heading": "Field",
+      "destination": "Assets",
+      "field_id": "S01_C"
+    },
+    {
+      "source_column": "D",
+      "source_heading": "Plant",
+      "destination": "Assets",
+      "field_id": "S01_D"
+    },
+    {
+      "source_column": "E",
+      "source_heading": "Location",
+      "destination": "Assets",
+      "field_id": "S01_E"
+    },
+    {
+      "source_column": "F",
+      "source_heading": "Unit Name",
+      "destination": "Assets",
+      "field_id": "S01_F"
+    },
+    {
+      "source_column": "G",
+      "source_heading": "Asset Name",
+      "destination": "Assets",
+      "field_id": "S01_G"
+    },
+    {
+      "source_column": "H",
+      "source_heading": "Tag #",
+      "destination": "Assets",
+      "field_id": "S01_H"
+    },
+    {
+      "source_column": "I",
+      "source_heading": "Asset #",
+      "destination": "Assets",
+      "field_id": "S01_I"
+    },
+    {
+      "source_column": "J",
+      "source_heading": "Full asset Description (Oracle Name)",
+      "destination": "Assets",
+      "field_id": "S01_J"
+    },
+    {
+      "source_column": "K",
+      "source_heading": "In-service?",
+      "destination": "Assets",
+      "field_id": "S01_K"
+    },
+    {
+      "source_column": "L",
+      "source_heading": "Insulation type",
+      "destination": "Technical Details",
+      "field_id": "S01_L"
+    },
+    {
+      "source_column": "M",
+      "source_heading": "Last Insp. Category",
+      "destination": "Technical Details",
+      "field_id": "S01_M"
+    },
+    {
+      "source_column": "N",
+      "source_heading": "Last OSI Date",
+      "destination": "Inspection Plan",
+      "field_id": "S01_N"
+    },
+    {
+      "source_column": "O",
+      "source_heading": "Next OSI Due Date",
+      "destination": "Inspection Plan",
+      "field_id": "S01_O"
+    },
+    {
+      "source_column": "P",
+      "source_heading": "Last Internal Insp. Date",
+      "destination": "Inspection Plan",
+      "field_id": "S01_P"
+    },
+    {
+      "source_column": "Q",
+      "source_heading": "Next Internal Insp. Date",
+      "destination": "Inspection Plan",
+      "field_id": "S01_Q"
+    },
+    {
+      "source_column": "R",
+      "source_heading": "Next Insp. Category",
+      "destination": "Technical Details",
+      "field_id": "S01_R"
+    },
+    {
+      "source_column": "S",
+      "source_heading": "Actual Worst CR (mm/yr)",
+      "destination": "Technical Details",
+      "field_id": "S01_S"
+    },
+    {
+      "source_column": "T",
+      "source_heading": "RL (from last insp)",
+      "destination": "Technical Details",
+      "field_id": "S01_T"
+    },
+    {
+      "source_column": "W",
+      "source_heading": "Remarks & Recommendations",
+      "destination": "Notes & Actions",
+      "field_id": "S01_W"
+    }
+  ],
+  "OP Piping": [
+    {
+      "source_column": "B",
+      "source_heading": "Report#",
+      "destination": "Assets",
+      "field_id": "S02_B"
+    },
+    {
+      "source_column": "C",
+      "source_heading": "Item",
+      "destination": "Assets",
+      "field_id": "S02_C"
+    },
+    {
+      "source_column": "D",
+      "source_heading": "Operat. Press.",
+      "destination": "Technical Details",
+      "field_id": "S02_D"
+    },
+    {
+      "source_column": "E",
+      "source_heading": "Max. Operat.Press.",
+      "destination": "Technical Details",
+      "field_id": "S02_E"
+    },
+    {
+      "source_column": "F",
+      "source_heading": "Design Press. 1st safety device",
+      "destination": "Technical Details",
+      "field_id": "S02_F"
+    },
+    {
+      "source_column": "G",
+      "source_heading": "Last Insp.",
+      "destination": "Inspection Plan",
+      "field_id": "S02_G"
+    },
+    {
+      "source_column": "H",
+      "source_heading": "Next insp.",
+      "destination": "Inspection Plan",
+      "field_id": "S02_H"
+    },
+    {
+      "source_column": "I",
+      "source_heading": "Related to OP SD?",
+      "destination": "Technical Details",
+      "field_id": "S02_I"
+    },
+    {
+      "source_column": "J",
+      "source_heading": "Repair Status",
+      "destination": "Notes & Actions",
+      "field_id": "S02_J"
+    },
+    {
+      "source_column": "K",
+      "source_heading": "Recommended Action",
+      "destination": "Notes & Actions",
+      "field_id": "S02_K"
+    },
+    {
+      "source_column": "L",
+      "source_heading": "Further Recommendation",
+      "destination": "Notes & Actions",
+      "field_id": "S02_L"
+    },
+    {
+      "source_column": "N",
+      "source_heading": "Column N",
+      "destination": "Technical Details",
+      "field_id": "S02_N"
+    }
+  ],
+  "GP Piping": [
+    {
+      "source_column": "B",
+      "source_heading": "SN#",
+      "destination": "Assets",
+      "field_id": "S03_B"
+    },
+    {
+      "source_column": "C",
+      "source_heading": "Item",
+      "destination": "Assets",
+      "field_id": "S03_C"
+    },
+    {
+      "source_column": "D",
+      "source_heading": "Pack#",
+      "destination": "Assets",
+      "field_id": "S03_D"
+    },
+    {
+      "source_column": "E",
+      "source_heading": "Opr. P (Psi)",
+      "destination": "Technical Details",
+      "field_id": "S03_E"
+    },
+    {
+      "source_column": "F",
+      "source_heading": "MOP (Psi)",
+      "destination": "Technical Details",
+      "field_id": "S03_F"
+    },
+    {
+      "source_column": "G",
+      "source_heading": "Design P or PSV Set P",
+      "destination": "Technical Details",
+      "field_id": "S03_G"
+    },
+    {
+      "source_column": "H",
+      "source_heading": "Insulated? Hot/Cold",
+      "destination": "Technical Details",
+      "field_id": "S03_H"
+    },
+    {
+      "source_column": "I",
+      "source_heading": "Last Insp",
+      "destination": "Inspection Plan",
+      "field_id": "S03_I"
+    },
+    {
+      "source_column": "J",
+      "source_heading": "Next Insp",
+      "destination": "Inspection Plan",
+      "field_id": "S03_J"
+    },
+    {
+      "source_column": "K",
+      "source_heading": "Actual Worst CR (mm/yr)",
+      "destination": "Technical Details",
+      "field_id": "S03_K"
+    },
+    {
+      "source_column": "L",
+      "source_heading": "Corrosion Remarks",
+      "destination": "Notes & Actions",
+      "field_id": "S03_L"
+    },
+    {
+      "source_column": "M",
+      "source_heading": "Dead-Leg Section?",
+      "destination": "Technical Details",
+      "field_id": "S03_M"
+    },
+    {
+      "source_column": "N",
+      "source_heading": "Dead-Leg Due Date",
+      "destination": "Technical Details",
+      "field_id": "S03_N"
+    },
+    {
+      "source_column": "O",
+      "source_heading": "Composite ?",
+      "destination": "Technical Details",
+      "field_id": "S03_O"
+    }
+  ],
+  "Turbines Piping": [
+    {
+      "source_column": "B",
+      "source_heading": "Rep.#",
+      "destination": "Assets",
+      "field_id": "S04_B"
+    },
+    {
+      "source_column": "C",
+      "source_heading": "Item",
+      "destination": "Assets",
+      "field_id": "S04_C"
+    },
+    {
+      "source_column": "D",
+      "source_heading": "Pack#",
+      "destination": "Assets",
+      "field_id": "S04_D"
+    },
+    {
+      "source_column": "E",
+      "source_heading": "Op Press (psi)",
+      "destination": "Technical Details",
+      "field_id": "S04_E"
+    },
+    {
+      "source_column": "F",
+      "source_heading": "MOP (psi)",
+      "destination": "Technical Details",
+      "field_id": "S04_F"
+    },
+    {
+      "source_column": "G",
+      "source_heading": "P design - 1st safety device",
+      "destination": "Technical Details",
+      "field_id": "S04_G"
+    },
+    {
+      "source_column": "H",
+      "source_heading": "Last Inspection",
+      "destination": "Inspection Plan",
+      "field_id": "S04_H"
+    },
+    {
+      "source_column": "I",
+      "source_heading": "Next Inspection",
+      "destination": "Inspection Plan",
+      "field_id": "S04_I"
+    },
+    {
+      "source_column": "J",
+      "source_heading": "Actual Worst CR (mm/yr)",
+      "destination": "Technical Details",
+      "field_id": "S04_J"
+    },
+    {
+      "source_column": "K",
+      "source_heading": "Corrosion Remarks",
+      "destination": "Notes & Actions",
+      "field_id": "S04_K"
+    },
+    {
+      "source_column": "L",
+      "source_heading": "Insulated? Hot/Cold",
+      "destination": "Technical Details",
+      "field_id": "S04_L"
+    },
+    {
+      "source_column": "M",
+      "source_heading": "Req. Action for hot Piping",
+      "destination": "Notes & Actions",
+      "field_id": "S04_M"
+    },
+    {
+      "source_column": "N",
+      "source_heading": "UT Inspectors Feedback",
+      "destination": "Notes & Actions",
+      "field_id": "S04_N"
+    },
+    {
+      "source_column": "O",
+      "source_heading": "PM Expected Date",
+      "destination": "Technical Details",
+      "field_id": "S04_O"
+    }
+  ],
+  "WD-33 Piping": [
+    {
+      "source_column": "B",
+      "source_heading": "NO",
+      "destination": "Assets",
+      "field_id": "S05_B"
+    },
+    {
+      "source_column": "C",
+      "source_heading": "Item",
+      "destination": "Assets",
+      "field_id": "S05_C"
+    },
+    {
+      "source_column": "D",
+      "source_heading": "In service?",
+      "destination": "Assets",
+      "field_id": "S05_D"
+    },
+    {
+      "source_column": "E",
+      "source_heading": "Area",
+      "destination": "Assets",
+      "field_id": "S05_E"
+    },
+    {
+      "source_column": "F",
+      "source_heading": "Pack#",
+      "destination": "Assets",
+      "field_id": "S05_F"
+    },
+    {
+      "source_column": "G",
+      "source_heading": "MOP",
+      "destination": "Technical Details",
+      "field_id": "S05_G"
+    },
+    {
+      "source_column": "H",
+      "source_heading": "ESD or Switch Set press",
+      "destination": "Technical Details",
+      "field_id": "S05_H"
+    },
+    {
+      "source_column": "I",
+      "source_heading": "Last Inspection",
+      "destination": "Inspection Plan",
+      "field_id": "S05_I"
+    },
+    {
+      "source_column": "J",
+      "source_heading": "Next Inspection",
+      "destination": "Inspection Plan",
+      "field_id": "S05_J"
+    },
+    {
+      "source_column": "K",
+      "source_heading": "Remarks",
+      "destination": "Notes & Actions",
+      "field_id": "S05_K"
+    }
+  ],
+  "EPFs": [
+    {
+      "source_column": "B",
+      "source_heading": "NO",
+      "destination": "Assets",
+      "field_id": "S06_B"
+    },
+    {
+      "source_column": "C",
+      "source_heading": "Item",
+      "destination": "Assets",
+      "field_id": "S06_C"
+    },
+    {
+      "source_column": "D",
+      "source_heading": "In service?",
+      "destination": "Assets",
+      "field_id": "S06_D"
+    },
+    {
+      "source_column": "E",
+      "source_heading": "MOP",
+      "destination": "Technical Details",
+      "field_id": "S06_E"
+    },
+    {
+      "source_column": "F",
+      "source_heading": "ESD or Switch Set press",
+      "destination": "Technical Details",
+      "field_id": "S06_F"
+    },
+    {
+      "source_column": "G",
+      "source_heading": "Last Insp Date",
+      "destination": "Inspection Plan",
+      "field_id": "S06_G"
+    },
+    {
+      "source_column": "H",
+      "source_heading": "Next Insp Date",
+      "destination": "Inspection Plan",
+      "field_id": "S06_H"
+    },
+    {
+      "source_column": "I",
+      "source_heading": "Remarks",
+      "destination": "Notes & Actions",
+      "field_id": "S06_I"
+    },
+    {
+      "source_column": "J",
+      "source_heading": "Column J",
+      "destination": "Technical Details",
+      "field_id": "S06_J"
+    }
+  ],
+  "MFDs": [
+    {
+      "source_column": "A",
+      "source_heading": "SN",
+      "destination": "Assets",
+      "field_id": "S07_A"
+    },
+    {
+      "source_column": "B",
+      "source_heading": "Item",
+      "destination": "Assets",
+      "field_id": "S07_B"
+    },
+    {
+      "source_column": "C",
+      "source_heading": "Header or Big MFD?",
+      "destination": "Technical Details",
+      "field_id": "S07_C"
+    },
+    {
+      "source_column": "D",
+      "source_heading": "Media",
+      "destination": "Technical Details",
+      "field_id": "S07_D"
+    },
+    {
+      "source_column": "E",
+      "source_heading": "Op P",
+      "destination": "Technical Details",
+      "field_id": "S07_E"
+    },
+    {
+      "source_column": "F",
+      "source_heading": "MOP",
+      "destination": "Technical Details",
+      "field_id": "S07_F"
+    },
+    {
+      "source_column": "G",
+      "source_heading": "Last Inspection",
+      "destination": "Inspection Plan",
+      "field_id": "S07_G"
+    },
+    {
+      "source_column": "H",
+      "source_heading": "Next Inspection",
+      "destination": "Inspection Plan",
+      "field_id": "S07_H"
+    },
+    {
+      "source_column": "I",
+      "source_heading": "Concern",
+      "destination": "Notes & Actions",
+      "field_id": "S07_I"
+    },
+    {
+      "source_column": "J",
+      "source_heading": "Remarks",
+      "destination": "Notes & Actions",
+      "field_id": "S07_J"
+    }
+  ],
+  "TLs": [
+    {
+      "source_column": "A",
+      "source_heading": null,
+      "destination": "Technical Details",
+      "field_id": "S08_A"
+    },
+    {
+      "source_column": "B",
+      "source_heading": "Location from",
+      "destination": "Assets",
+      "field_id": "S08_B"
+    },
+    {
+      "source_column": "C",
+      "source_heading": "Location to",
+      "destination": "Assets",
+      "field_id": "S08_C"
+    },
+    {
+      "source_column": "D",
+      "source_heading": "Pipeline Name",
+      "destination": "Assets",
+      "field_id": "S08_D"
+    },
+    {
+      "source_column": "E",
+      "source_heading": "In-Service?",
+      "destination": "Assets",
+      "field_id": "S08_E"
+    },
+    {
+      "source_column": "F",
+      "source_heading": "MOP",
+      "destination": "Technical Details",
+      "field_id": "S08_F"
+    },
+    {
+      "source_column": "G",
+      "source_heading": "ESD or Switch set Press (Psi)",
+      "destination": "Technical Details",
+      "field_id": "S08_G"
+    },
+    {
+      "source_column": "H",
+      "source_heading": "Media",
+      "destination": "Technical Details",
+      "field_id": "S08_H"
+    },
+    {
+      "source_column": "I",
+      "source_heading": "Diam. (\")",
+      "destination": "Technical Details",
+      "field_id": "S08_I"
+    },
+    {
+      "source_column": "J",
+      "source_heading": "Sch",
+      "destination": "Technical Details",
+      "field_id": "S08_J"
+    },
+    {
+      "source_column": "K",
+      "source_heading": "Length (KM)",
+      "destination": "Technical Details",
+      "field_id": "S08_K"
+    },
+    {
+      "source_column": "L",
+      "source_heading": "Has Pig Traps?",
+      "destination": "Technical Details",
+      "field_id": "S08_L"
+    },
+    {
+      "source_column": "M",
+      "source_heading": "Coated PL?",
+      "destination": "Technical Details",
+      "field_id": "S08_M"
+    },
+    {
+      "source_column": "N",
+      "source_heading": "No. of sand Dunes",
+      "destination": "Technical Details",
+      "field_id": "S08_N"
+    },
+    {
+      "source_column": "O",
+      "source_heading": "No. of Non-Std RC",
+      "destination": "Technical Details",
+      "field_id": "S08_O"
+    },
+    {
+      "source_column": "P",
+      "source_heading": "Clamps # till Insp Date",
+      "destination": "Technical Details",
+      "field_id": "S08_P"
+    },
+    {
+      "source_column": "Q",
+      "source_heading": "Leak# after last Insp",
+      "destination": "Technical Details",
+      "field_id": "S08_Q"
+    },
+    {
+      "source_column": "R",
+      "source_heading": "Total Clamps#",
+      "destination": "Technical Details",
+      "field_id": "S08_R"
+    },
+    {
+      "source_column": "S",
+      "source_heading": "Corrosion Root Cause",
+      "destination": "Technical Details",
+      "field_id": "S08_S"
+    },
+    {
+      "source_column": "T",
+      "source_heading": "last insp",
+      "destination": "Inspection Plan",
+      "field_id": "S08_T"
+    },
+    {
+      "source_column": "U",
+      "source_heading": "Next Insp",
+      "destination": "Inspection Plan",
+      "field_id": "S08_U"
+    },
+    {
+      "source_column": "V",
+      "source_heading": "MAWP till Next Insp",
+      "destination": "Technical Details",
+      "field_id": "S08_V"
+    },
+    {
+      "source_column": "W",
+      "source_heading": "Req. Action?",
+      "destination": "Notes & Actions",
+      "field_id": "S08_W"
+    },
+    {
+      "source_column": "X",
+      "source_heading": "Recommendations",
+      "destination": "Notes & Actions",
+      "field_id": "S08_X"
+    },
+    {
+      "source_column": "Y",
+      "source_heading": "Wells connected to Line",
+      "destination": "Technical Details",
+      "field_id": "S08_Y"
+    },
+    {
+      "source_column": "Z",
+      "source_heading": "BBL/\nKM",
+      "destination": "Technical Details",
+      "field_id": "S08_Z"
+    },
+    {
+      "source_column": "AA",
+      "source_heading": "line capacity",
+      "destination": "Technical Details",
+      "field_id": "S08_AA"
+    }
+  ],
+  "FLs": [
+    {
+      "source_column": "A",
+      "source_heading": "Well",
+      "destination": "Assets",
+      "field_id": "S09_A"
+    },
+    {
+      "source_column": "B",
+      "source_heading": "In-service?",
+      "destination": "Assets",
+      "field_id": "S09_B"
+    },
+    {
+      "source_column": "C",
+      "source_heading": "Service",
+      "destination": "Technical Details",
+      "field_id": "S09_C"
+    },
+    {
+      "source_column": "D",
+      "source_heading": "WSW / WIW / OPW",
+      "destination": "Technical Details",
+      "field_id": "S09_D"
+    },
+    {
+      "source_column": "E",
+      "source_heading": "MOP",
+      "destination": "Technical Details",
+      "field_id": "S09_E"
+    },
+    {
+      "source_column": "F",
+      "source_heading": "ESD or Switch Set press",
+      "destination": "Technical Details",
+      "field_id": "S09_F"
+    },
+    {
+      "source_column": "G",
+      "source_heading": "BOPD",
+      "destination": "Technical Details",
+      "field_id": "S09_G"
+    },
+    {
+      "source_column": "H",
+      "source_heading": "WC%",
+      "destination": "Technical Details",
+      "field_id": "S09_H"
+    },
+    {
+      "source_column": "I",
+      "source_heading": "Last Insp",
+      "destination": "Inspection Plan",
+      "field_id": "S09_I"
+    },
+    {
+      "source_column": "J",
+      "source_heading": "Next Insp",
+      "destination": "Inspection Plan",
+      "field_id": "S09_J"
+    },
+    {
+      "source_column": "K",
+      "source_heading": "Number of Leaks after last Insp date",
+      "destination": "Technical Details",
+      "field_id": "S09_K"
+    },
+    {
+      "source_column": "L",
+      "source_heading": "Total Clamps#",
+      "destination": "Technical Details",
+      "field_id": "S09_L"
+    },
+    {
+      "source_column": "M",
+      "source_heading": "Remarks / Recommendation of recent Insp.",
+      "destination": "Notes & Actions",
+      "field_id": "S09_M"
+    },
+    {
+      "source_column": "N",
+      "source_heading": "Req. Action?",
+      "destination": "Notes & Actions",
+      "field_id": "S09_N"
+    }
+  ],
+  "GL Lines": [
+    {
+      "source_column": "A",
+      "source_heading": "Column A",
+      "destination": "Technical Details",
+      "field_id": "S10_A"
+    },
+    {
+      "source_column": "B",
+      "source_heading": "Column B",
+      "destination": "Assets",
+      "field_id": "S10_B"
+    },
+    {
+      "source_column": "C",
+      "source_heading": "Gas Lift Line",
+      "destination": "Assets",
+      "field_id": "S10_C"
+    },
+    {
+      "source_column": "D",
+      "source_heading": "NPS (in.)",
+      "destination": "Technical Details",
+      "field_id": "S10_D"
+    },
+    {
+      "source_column": "E",
+      "source_heading": "Upstream press. Psi,",
+      "destination": "Technical Details",
+      "field_id": "S10_E"
+    },
+    {
+      "source_column": "F",
+      "source_heading": "Downstream press, psi",
+      "destination": "Technical Details",
+      "field_id": "S10_F"
+    },
+    {
+      "source_column": "G",
+      "source_heading": "Upstream Temp F",
+      "destination": "Technical Details",
+      "field_id": "S10_G"
+    },
+    {
+      "source_column": "H",
+      "source_heading": "Downstream Temp F",
+      "destination": "Technical Details",
+      "field_id": "S10_H"
+    },
+    {
+      "source_column": "I",
+      "source_heading": "Injected rate MMSCFD",
+      "destination": "Technical Details",
+      "field_id": "S10_I"
+    },
+    {
+      "source_column": "J",
+      "source_heading": "Age (Yr)",
+      "destination": "Technical Details",
+      "field_id": "S10_J"
+    },
+    {
+      "source_column": "K",
+      "source_heading": "T min. (mm)",
+      "destination": "Technical Details",
+      "field_id": "S10_K"
+    },
+    {
+      "source_column": "L",
+      "source_heading": "Findings / Recommendation / Remarks",
+      "destination": "Notes & Actions",
+      "field_id": "S10_L"
+    },
+    {
+      "source_column": "M",
+      "source_heading": "Last Insp. Date",
+      "destination": "Inspection Plan",
+      "field_id": "S10_M"
+    },
+    {
+      "source_column": "N",
+      "source_heading": "Next Insp. Date",
+      "destination": "Inspection Plan",
+      "field_id": "S10_N"
+    },
+    {
+      "source_column": "O",
+      "source_heading": "R.L (Year)",
+      "destination": "Technical Details",
+      "field_id": "S10_O"
+    },
+    {
+      "source_column": "P",
+      "source_heading": "MAWP till next insp.",
+      "destination": "Technical Details",
+      "field_id": "S10_P"
+    },
+    {
+      "source_column": "Q",
+      "source_heading": "In-Accessible areas (Spool from - to & Photos)",
+      "destination": "Notes & Actions",
+      "field_id": "S10_Q"
+    },
+    {
+      "source_column": "R",
+      "source_heading": "Requirements from Production",
+      "destination": "Notes & Actions",
+      "field_id": "S10_R"
+    },
+    {
+      "source_column": "S",
+      "source_heading": "Action taken",
+      "destination": "Notes & Actions",
+      "field_id": "S10_S"
+    }
+  ]
+}

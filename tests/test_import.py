@@ -79,3 +79,48 @@ class ImportTests(unittest.TestCase):
             preview = preview_import(store, source)
             self.assertTrue(preview['errors'])
             with self.assertRaises(ValueError): apply_import(store, preview['token'])
+
+    def test_invalid_workbook_closes_file_before_cleanup(self):
+        from unittest.mock import patch
+        from inspection_app.imports import read_workbook
+        import openpyxl
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'invalid.xlsx'
+            book = openpyxl.Workbook()
+            book.save(path)
+            opened = []
+            original = openpyxl.load_workbook
+            def load(*args, **kwargs):
+                workbook = original(*args, **kwargs)
+                opened.append(workbook)
+                return workbook
+            with patch('inspection_app.imports.openpyxl.load_workbook', load):
+                with self.assertRaisesRegex(ValueError, 'Missing worksheet'):
+                    read_workbook(path)
+            self.assertIsNone(opened[0]._archive.fp, 'Invalid upload must be closed before Windows deletes it')
+
+    def test_duplicate_headings_release_underlying_file_handle(self):
+        from unittest.mock import patch
+        from inspection_app.imports import read_workbook
+        import openpyxl
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'duplicate.xlsx'
+            book = openpyxl.Workbook()
+            book.active.title = 'Assets'
+            book.active.append(['asset_id', 'asset_id'])
+            book.active.append(['one', 'two'])
+            book.save(path)
+            handles = []
+            original = openpyxl.load_workbook
+            def load(*args, **kwargs):
+                workbook = original(*args, **kwargs)
+                handles.append(workbook._archive.fp)
+                return workbook
+            with patch('inspection_app.imports.openpyxl.load_workbook', load):
+                try:
+                    read_workbook(path)
+                except ValueError as exc:
+                    self.assertIn('Duplicate headings', str(exc))
+                    self.assertTrue(handles[0].closed, 'Partially consumed worksheet must release its Windows file handle')
+                else:
+                    self.fail('Duplicate headings should be rejected')

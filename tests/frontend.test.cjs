@@ -2,6 +2,80 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs'),vm=require('node:vm');
 const source=fs.readFileSync('static/app.js','utf8');
+test('main served script can render an import preview without loading a second script',()=>{
+ const nodes={};function node(tag){return {tagName:tag,content:'test-token',children:[],value:'',dataset:{},attributes:{},classList:{toggle(){},add(){},remove(){}},addEventListener(){},setAttribute(k,v){this.attributes[k]=v},removeAttribute(k){delete this.attributes[k]},setCustomValidity(v){this.validationMessage=v},checkValidity(){return !this.validationMessage},focus(){},append(...xs){this.children.push(...xs)},replaceChildren(...xs){this.children=xs}}}
+ const document={querySelector:s=>nodes[s]??=node('div'),querySelectorAll:()=>[],createElement:node};
+ const ctx=vm.createContext({document,window:{addEventListener(){}},sessionStorage:{getItem:()=>null},localStorage:{getItem:()=>null},fetch:()=>new Promise(()=>{}),Date});
+ vm.runInContext(fs.readFileSync('static/app.js','utf8'),ctx);
+ ctx.renderImportPreview({token:'preview',format:'legacy',conflicts:[],partial:false,counts:{Assets:1,'Inspection Plan':1,'Review Items':0},additions:1,updates:0,retained:0,errors:[],comparison:[],included_sheets:['FLs'],excluded_sheets:[],sheet_summary:[]});
+ assert.match(nodes['#import-result'].children[0].textContent,/1 assets/);assert.equal(nodes['#apply'].hidden,false);
+ const all=n=>[n,...n.children.flatMap(all)],custom=all(nodes['#custom-end-host']).find(n=>n.id==='custom-end');assert.ok(custom);assert.equal(custom.type,'text');assert.ok(all(nodes['#custom-end-host']).some(n=>n.className==='month-picker-toggle'));
+});
+test('view switching leaves nested content regions available inside the active view',()=>{
+ const top={id:'import',hidden:true},nested={id:undefined,hidden:false},nav={dataset:{view:'import'},classList:{toggle(){}}};
+ const document={querySelectorAll(selector){if(selector==='main > section')return[top];if(selector==='main section')return[top,nested];if(selector==='nav button')return[nav];return[]}};
+ const ctx=vm.createContext({document,message(){},loadBackups(){},loadBackupStatus(){},loadStagedImports(){},loadImportHistory(){},renderImportProgress(){}});
+ vm.runInContext(getFunction('show'),ctx);ctx.show('import');
+ assert.equal(top.hidden,false);assert.equal(nested.hidden,false);
+});
+function importContext(){
+ function node(tag='div',text=''){return {tagName:tag,textContent:text,children:[],hidden:false,disabled:false,value:'merge',checked:false,classList:{toggle(){}},append(...xs){this.children.push(...xs)},replaceChildren(...xs){this.children=xs},setAttribute(){}}}
+ const nodes={};const ctx=vm.createContext({$:s=>nodes[s]??=node(),el:node,importInfo:{format:'legacy',sheets:[{name:'FLs',role:'assets'},{name:'Coolers',role:'reference'}]},importSelection:new Set(['FLs','Coolers']),previewToken:'old',importGeneration:0,importBusy:false,importReview:{partial:false,token:null,conflicts:[],decisions:new Map(),dirty:new Set()}});
+ for(const name of ['invalidateImportPreview','updateImportSelection','renderImportSheets','importSelectionNames','importResponseIsCurrent'])vm.runInContext(getFunction(name),ctx);
+ return {ctx,nodes};
+}
+test('excluding a tab invalidates preview and prevents partial replace',()=>{
+ const {ctx,nodes}=importContext();ctx.renderImportSheets();ctx.updateImportSelection('Coolers',false);
+ assert.equal(ctx.previewToken,null);assert.equal(nodes['#apply'].hidden,true);assert.equal(nodes['#import-mode'].disabled,true);assert.equal(nodes['#import-mode'].value,'merge');
+ assert.deepEqual(Array.from(ctx.importSelectionNames()),['FLs']);
+});
+test('choosing a duplicate action hides import and retains the server review token',()=>{
+ const {ctx,nodes}=importContext();ctx.importReview={token:'review-base',conflicts:[{row_key:'row-1'}],decisions:new Map(),dirty:new Set(),partial:false};
+ vm.runInContext(getFunction('updateImportDecision'),ctx);ctx.updateImportDecision('row-1','skip');
+ assert.equal(ctx.previewToken,null);assert.equal(nodes['#apply'].hidden,true);assert.equal(ctx.importReview.token,'review-base');
+ assert.equal(ctx.importReview.decisions.get('row-1').action,'skip');assert.equal(ctx.importReview.dirty.has('row-1'),true);
+ assert.equal(nodes['#import-mode'].value,'merge');assert.equal(nodes['#import-mode'].disabled,true);
+});
+test('existing asset decisions carry the selected target and can be returned to review',()=>{
+ const {ctx}=importContext();ctx.importReview={token:'base',conflicts:[{row_key:'row'}],decisions:new Map(),dirty:new Set(),partial:false};
+ vm.runInContext(getFunction('updateImportDecision'),ctx);ctx.updateImportDecision('row','match:existing-7');
+ assert.equal(ctx.importReview.decisions.get('row').asset_id,'existing-7');ctx.updateImportDecision('row','');
+ assert.equal(ctx.importReview.decisions.get('row').action,'review');
+});
+test('changing tabs clears pending duplicate decisions along with the preview',()=>{
+ const {ctx}=importContext();ctx.importReview={token:'old',conflicts:[{}],decisions:new Map([['row',{action:'skip'}]]),dirty:new Set(['row']),partial:true};
+ ctx.updateImportSelection('Coolers',false);assert.equal(ctx.importReview.token,null);assert.equal(ctx.importReview.decisions.size,0);
+});
+test('completed upload preview renders actionable duplicate controls after busy upload',()=>{
+ const {ctx,nodes}=importContext();ctx.importBusy=true;ctx.resolveImportPreview=()=>{};
+ for(const name of ['importEvidence','renderImportConflicts','renderImportPreview'])vm.runInContext(getFunction(name),ctx);
+ ctx.renderImportPreview({token:'new',format:'legacy',partial:false,counts:{Assets:2,'Inspection Plan':2,'Review Items':0},additions:2,updates:0,retained:0,errors:['Needs decisions'],warnings:[],comparison:[],included_sheets:['FLs','Coolers'],excluded_sheets:[],sheet_summary:[],unresolved_count:1,conflicts:[{row_key:'row',source_sheet:'FLs',source_row:4,asset:{name:'AG-101'},inspections:[],notes:[],reasons:['Duplicate'],candidates:[],resolved:false}]});
+ const all=node=>[node,...node.children.flatMap(all)];const decision=all(nodes['#import-result']).find(n=>n.tagName==='select');
+ assert.ok(decision);assert.equal(decision.disabled,false);assert.equal(ctx.importBusy,false);assert.equal(nodes['#apply'].hidden,true);
+});
+test('older running import server gives a restart instruction before rendering incompatible preview',()=>{
+ const {ctx}=importContext();ctx.renderImportConflicts=()=>{};
+ vm.runInContext(getFunction('renderImportPreview'),ctx);
+ assert.throws(()=>ctx.renderImportPreview({format:'legacy',token:'old-backend'}),/restart|close.*app/i);
+ assert.equal(ctx.previewToken,'old');
+});
+test('clearing data resets the uploaded file and invalidates late import responses',()=>{
+ const {ctx,nodes}=importContext();ctx.importFile={name:'old.xlsx'};const oldFile=ctx.importFile,generation=ctx.importGeneration;
+ ctx.importReview.token='old-review';vm.runInContext(getFunction('resetImportState'),ctx);ctx.resetImportState(true);
+ assert.equal(ctx.importFile,null);assert.equal(ctx.importInfo,null);assert.equal(ctx.importSelection.size,0);
+ assert.equal(ctx.importReview.token,null);assert.equal(ctx.importResponseIsCurrent(generation,oldFile),false);
+ assert.equal(nodes['#preview'].disabled,true);assert.equal(nodes['#file'].value,'');
+});
+test('bulk selection supports no tabs without enabling a preview',()=>{
+ const {ctx,nodes}=importContext();ctx.renderImportSheets();nodes['#import-deselect-all'].onclick();
+ assert.equal(ctx.importSelectionNames().length,0);assert.equal(nodes['#preview'].disabled,true);
+ nodes['#import-select-all'].onclick();assert.equal(ctx.importSelectionNames().length,2);assert.equal(nodes['#preview'].disabled,false);
+});
+test('obsolete import responses are ignored after file or tab selection changes',()=>{
+ const {ctx}=importContext();const file={};ctx.importFile=file;const generation=ctx.importGeneration;
+ assert.equal(ctx.importResponseIsCurrent(generation,file),true);ctx.updateImportSelection('Coolers',false);
+ assert.equal(ctx.importResponseIsCurrent(generation,file),false);assert.equal(ctx.importResponseIsCurrent(ctx.importGeneration,{}),false);
+});
 function getFunction(name){const start=source.indexOf('function '+name+'(');assert.notEqual(start,-1,`${name} must exist`);let depth=0,opened=false;for(let i=source.indexOf('{',start);i<source.length;i++){if(source[i]==='{'){depth++;opened=true}if(source[i]==='}'){depth--;if(depth===0&&opened)return source.slice(start,i+1)}}throw Error('missing function end')}
 test('switching source sheets clears conflicting filters and resets pagination',()=>{
  const controls=Object.fromEntries(['sheet','search','family','service','due-filter','review-filter','status'].map(id=>['#'+id,{value:'previous filter'}]));let renders=0;
@@ -92,4 +166,90 @@ test('dashboard attention explains review flags, recorded conditions, and missin
  assert.deepEqual(JSON.parse(JSON.stringify(ctx.inspectionAttention({review_status:'Review',review_reason:'Ambiguous date',next_original:'TBC'}))),{kind:'review',label:'Needs review',detail:'Ambiguous date',original:'TBC'});
  assert.equal(ctx.inspectionAttention({scheduling_condition:'OOS'}).label,'OOS');
  assert.equal(ctx.inspectionAttention({}).label,'No scheduled date');
+});
+
+test('source navigation exits both reconciliation-only views',()=>{
+ const controls=Object.fromEntries(['sheet','search','family','service','due-filter','review-filter','status'].map(id=>['#'+id,{value:''}]));
+ const ctx=vm.createContext({$:id=>controls[id],renderAssets(){},onlyRecentRecon:true,onlyConfirmedRecon:true,assetPage:4});
+ vm.runInContext(getFunction('selectSourceSheet'),ctx);ctx.selectSourceSheet('GP Piping');
+ assert.equal(ctx.onlyRecentRecon,false);assert.equal(ctx.onlyConfirmedRecon,false);
+});
+
+test('dashboard summary and aging cards exit reconciliation restrictions',()=>{
+ function node(){return {value:'',children:[],dataset:{},classList:{add(){}},append(...xs){this.children.push(...xs)},replaceChildren(...xs){this.children=xs},setAttribute(){}}}
+ const nodes={};const ctx=vm.createContext({$:s=>nodes[s]??=node(),assets:[],onlyRecentRecon:true,onlyConfirmedRecon:true,assetPage:4,Date,el:()=>node(),active:()=>true,applicable:()=>true,currentMonth:()=> '2026-11',addMonths:()=> '2027-02',queuePanel:()=>node(),renderSheetShortcuts(){},show(){}});
+ vm.runInContext(getFunction('renderDashboard'),ctx);ctx.renderDashboard();
+ for(const card of [...nodes['#cards'].children,...nodes['#aging-panel'].children[1].children]){
+  ctx.onlyRecentRecon=true;ctx.onlyConfirmedRecon=true;ctx.assetPage=4;card.onclick();
+  assert.equal(ctx.onlyRecentRecon,false);assert.equal(ctx.onlyConfirmedRecon,false);assert.equal(ctx.assetPage,1);
+ }
+});
+
+test('verify selected follows the cross-page register selection bar',()=>{
+ function node(){return {value:'',hidden:false,disabled:false,checked:false,indeterminate:false,textContent:''}}
+ const nodes={'#select-visible':node(),'#selection-count':node(),'#selection-bar':node(),'#verify-selected':node()};
+ const selectedAssets=new Set(['asset-selected-on-another-page']);const ctx=vm.createContext({$:selector=>nodes[selector],selectedAssets,visibleAssetRows:()=>[]});
+ vm.runInContext(getFunction('updateSelectionBar'),ctx);ctx.updateSelectionBar();
+ assert.equal(nodes['#selection-bar'].hidden,false);assert.equal(nodes['#verify-selected'].disabled,false);
+ selectedAssets.clear();ctx.updateSelectionBar();assert.equal(nodes['#selection-bar'].hidden,true);assert.equal(nodes['#verify-selected'].disabled,true);
+});
+
+test('saved backups expose selectable rows, select all and an empty disabled delete action',async()=>{
+ const html=fs.readFileSync('static/index.html','utf8');
+ for(const id of ['backup-select-all','backup-selection-count','delete-selected-backups'])assert.match(html,new RegExp(`id="${id}"`));
+ function node(tag='div',text=''){return {tagName:tag,textContent:text,children:[],value:'',checked:false,disabled:false,indeterminate:false,dataset:{},append(...items){this.children.push(...items)},replaceChildren(...items){this.children=items},setAttribute(name,value){this[name]=value},querySelectorAll(selector){const all=n=>[n,...n.children.flatMap(all)];return all(this).filter(item=>selector==='input[data-backup-name]'&&item.tagName==='input'&&item.dataset.backupName)}}}
+ const nodes={},backups=[{filename:'inspection-a.db',modified:'2026-01-01T10:00:00',size:100},{filename:'inspection-b.db',modified:'2026-01-02T10:00:00',size:200}];
+ const ctx=vm.createContext({savedBackups:[],selectedBackupNames:new Set(),$:selector=>nodes[selector]??=node(),el:(tag,text,cls)=>{const item=node(tag,text??'');item.className=cls||'';return item},Date,
+  api:async path=>path==='/api/backups'?backups:[],message(){},confirm:()=>true});
+ function extract(name){let start=source.indexOf('function '+name+'(');assert.notEqual(start,-1,`${name} must exist`);const prefix=source.slice(Math.max(0,start-6),start)==='async '?'async ':'';let depth=0,opened=false;for(let i=source.indexOf('{',start);i<source.length;i++){if(source[i]==='{'){depth++;opened=true}if(source[i]==='}'){depth--;if(opened&&depth===0)return prefix+source.slice(start,i+1)}}throw Error(name+' has no closing brace')}
+ for(const name of ['updateBackupSelectionUI','setSavedBackupSelection','setAllSavedBackupSelection','loadBackups','deleteSelectedBackups','setupBackupSelection'])vm.runInContext(extract(name),ctx);
+ ctx.setupBackupSelection();await ctx.loadBackups();
+ const all=n=>[n,...n.children.flatMap(all)],boxes=all(nodes['#backup-list']).filter(item=>item.tagName==='input');
+ assert.equal(boxes.length,2);assert.equal(nodes['#delete-selected-backups'].disabled,true);assert.equal(nodes['#backup-selection-count'].textContent,'0 selected');
+ boxes[0].checked=true;boxes[0].onchange();assert.equal(nodes['#delete-selected-backups'].disabled,false);assert.equal(nodes['#backup-selection-count'].textContent,'1 selected');assert.equal(nodes['#backup-select-all'].indeterminate,true);
+ nodes['#backup-select-all'].checked=true;nodes['#backup-select-all'].onchange({target:nodes['#backup-select-all']});assert.equal(ctx.selectedBackupNames.size,2);assert.equal(nodes['#backup-selection-count'].textContent,'2 selected');
+});
+
+test('saved backup deletion confirms exact filenames, deletes selected records and refreshes',async()=>{
+ function node(tag='div',text=''){return {tagName:tag,textContent:text,children:[],value:'',checked:false,disabled:false,indeterminate:false,dataset:{},append(...items){this.children.push(...items)},replaceChildren(...items){this.children=items},setAttribute(name,value){this[name]=value}}}
+ const nodes={},backups=[{filename:'inspection-a.db',modified:'2026-01-01T10:00:00',size:100},{filename:'inspection-b.db',modified:'2026-01-02T10:00:00',size:200},{filename:'inspection-c.db',modified:'2026-01-03T10:00:00',size:300}],requests=[];
+ const ctx=vm.createContext({savedBackups:[],selectedBackupNames:new Set(),$:selector=>nodes[selector]??=node(),el:(tag,text,cls)=>{const item=node(tag,text??'');item.className=cls||'';return item},Date,
+  api:async(path,options)=>{if(path==='/api/backups')return backups.filter(item=>!ctx.deleted?.includes(item.filename));const body=JSON.parse(options.body);requests.push({path,body});ctx.deleted=['inspection-a.db'];return {deleted:['inspection-a.db'],failed:[{filename:'inspection-b.db',error:'locked'}]}},
+  message(text){ctx.lastMessage=text},loadBackupStatus:async()=>{ctx.statusRefreshes=(ctx.statusRefreshes||0)+1},confirm(prompt){ctx.prompt=prompt;return ctx.confirmResult}});
+ function extract(name){let start=source.indexOf('function '+name+'(');assert.notEqual(start,-1,`${name} must exist`);const prefix=source.slice(Math.max(0,start-6),start)==='async '?'async ':'';let depth=0,opened=false;for(let i=source.indexOf('{',start);i<source.length;i++){if(source[i]==='{'){depth++;opened=true}if(source[i]==='}'){depth--;if(opened&&depth===0)return prefix+source.slice(start,i+1)}}throw Error(name+' has no closing brace')}
+ for(const name of ['updateBackupSelectionUI','setSavedBackupSelection','setAllSavedBackupSelection','loadBackups','deleteSelectedBackups'])vm.runInContext(extract(name),ctx);
+ await ctx.loadBackups();const all=n=>[n,...n.children.flatMap(all)],boxes=all(nodes['#backup-list']).filter(item=>item.tagName==='input');
+ boxes[0].checked=true;boxes[0].onchange();boxes[1].checked=true;boxes[1].onchange();ctx.confirmResult=false;await ctx.deleteSelectedBackups();
+ assert.equal(requests.length,0);assert.match(ctx.prompt,/inspection-a\.db/);assert.match(ctx.prompt,/inspection-b\.db/);assert.doesNotMatch(ctx.prompt,/inspection-c\.db/);
+ ctx.confirmResult=true;await ctx.deleteSelectedBackups();
+ assert.deepEqual(requests,[{path:'/api/backups/delete',body:{filenames:['inspection-a.db','inspection-b.db']}}]);
+ assert.equal(ctx.selectedBackupNames.size,0);assert.equal(all(nodes['#backup-list']).filter(item=>item.tagName==='input').length,2);assert.equal(ctx.statusRefreshes,1);assert.match(ctx.lastMessage,/Deleted 1 backup/);assert.match(ctx.lastMessage,/1 could not be deleted/);
+});
+
+test('month entry combines typing with a year and month-grid popup without day choices',()=>{
+ let draftWrites=0,dismiss=null,activeElement=null;const document={get activeElement(){return activeElement},addEventListener(name,listener){if(name==='pointerdown')dismiss=listener},removeEventListener(name,listener){if(name==='pointerdown'&&dismiss===listener)dismiss=null}};
+ function node(tag,text,cls){return {tagName:tag,textContent:text,children:[],className:cls,value:'',hidden:false,disabled:false,attributes:{},dataset:{},classList:{toggle(){}},append(...items){this.children.push(...items)},setAttribute(key,value){this.attributes[key]=value},removeAttribute(key){delete this.attributes[key]},setCustomValidity(value){this.validationMessage=value},focus(){activeElement=this},contains(target){return !target?.outside}}}
+ const ctx=vm.createContext({el:node,editorDirty:false,monthFieldSequence:0,Date,document,persistEditorDraft(){draftWrites++}});vm.runInContext(getFunction('monthEntry'),ctx);vm.runInContext(getFunction('field'),ctx);
+ const parent=node('div');let saved;
+ const label=ctx.field(parent,'Next inspection month','2027-04',v=>saved=v),wrap=parent.children[0],all=n=>[n,...n.children.flatMap(all)],month=all(wrap).find(child=>child.tagName==='input'),toggle=all(wrap).find(child=>child.className==='month-picker-toggle'),picker=all(wrap).find(child=>child.className==='month-picker');
+ assert.equal(month.type,'text');assert.equal(month.value,'2027-04');assert.equal(month.placeholder,'YYYY-MM');const hint=all(wrap).find(child=>child.className==='month-entry-hint');assert.match(hint.textContent,/type.*or pick/i);assert.match(hint.textContent,/No day is recorded/);assert.equal(picker.hidden,true);
+ month.value='2027-05';month.oninput();assert.equal(saved,'2027-05');assert.equal(ctx.editorDirty,true);assert.equal(draftWrites,1);
+ month.value='2027-13';month.oninput();month.onblur();assert.equal(month.attributes['aria-invalid'],'true');assert.match(all(wrap).find(child=>child.className==='month-entry-error').textContent,/YYYY-MM/);
+ month.value='';month.oninput();assert.equal(saved,null);assert.equal(draftWrites,4);
+ toggle.onclick();assert.equal(picker.hidden,false);assert.equal(toggle.attributes['aria-expanded'],'true');const buttons=all(picker).filter(child=>child.className==='month-picker-month');assert.equal(buttons.length,12);assert.equal(buttons[0].textContent,'Jan');assert.equal(all(picker).some(child=>/^([0-9]|[12][0-9]|3[01])$/.test(child.textContent)),false);
+ const yearLabel=all(picker).find(child=>child.className==='month-picker-year'),currentMonthLabel=new Date().toLocaleString('en',{month:'long'}),currentMonthIndex=new Date().getMonth();assert.equal(yearLabel.textContent,`${currentMonthLabel} ${new Date().getFullYear()}`);picker.onkeydown({key:'ArrowLeft',preventDefault(){}});assert.equal(document.activeElement,buttons[(currentMonthIndex+11)%12]);all(picker).find(child=>child.className==='month-picker-next').onclick();assert.equal(yearLabel.textContent,`${currentMonthLabel} ${new Date().getFullYear()+1}`);
+ buttons[7].onclick();assert.equal(month.value,`${new Date().getFullYear()+1}-08`);assert.equal(saved,month.value);assert.equal(picker.hidden,true);assert.equal(ctx.editorDirty,true);assert.equal(draftWrites,5);
+ toggle.onclick();picker.onkeydown({key:'Escape',preventDefault(){}});assert.equal(picker.hidden,true);assert.equal(toggle.attributes['aria-expanded'],'false');
+ toggle.onclick();assert.equal(picker.hidden,false);dismiss({target:{outside:true}});assert.equal(picker.hidden,true);assert.equal(toggle.attributes['aria-expanded'],'false');assert.equal(dismiss,null);
+ const applicability=ctx.field(parent,'Applicable (Yes / No)','Yes',()=>{}).children[0];
+ assert.equal(applicability.tagName,'select');assert.ok(applicability.children.some(o=>o.value==='No'));
+ const status=ctx.field(parent,'Record status','Legacy status',()=>{}).children[0];
+ assert.equal(status.value,'Legacy status');assert.ok(status.children.some(o=>o.value==='Legacy status'));
+});
+
+test('yearly export omissions explain review, undated and earlier due months',()=>{
+ const ctx=vm.createContext({active:a=>a.record_status!=='Archived',applicable:i=>i.applicable==='Yes'});vm.runInContext(getFunction('yearlyOmissions'),ctx);
+ const records=[{id:'a',name:'A',inspections:[{inspection_type:'OSI',applicable:'Yes',review_status:'Review',next_inspection_month:'2027-04'},{inspection_type:'Internal',applicable:'Yes',next_inspection_month:null}]},{id:'b',name:'B',inspections:[{inspection_type:'OSI',applicable:'Yes',next_inspection_month:'2026-01'}]}];
+ const report=ctx.yearlyOmissions(records,'2027','','',false);
+ assert.deepEqual(Array.from(report,r=>r.reason),['Needs review','No next month / scheduling condition','Due before selected year; carry-over is off']);
 });

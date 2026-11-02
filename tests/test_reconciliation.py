@@ -54,3 +54,26 @@ class ReconciliationTests(unittest.TestCase):
             updates = [{'asset_id':a['id'],'version':a['version'],'inspection_type':'OSI','fields':{'next_inspection_month':'2026-01'}},{'asset_id':b['id'],'version':b['version'],'inspection_type':'Internal','fields':{'next_inspection_month':'2026-01'}}]
             with self.assertRaises(ValueError): apply_reconciliation(store, updates)
             self.assertEqual(store.get_asset(a['id']), a)
+
+    def test_invalid_plan_releases_underlying_file_before_cleanup(self):
+        from unittest.mock import patch
+        import openpyxl
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            path = root / 'invalid-plan.xlsx'
+            book = openpyxl.Workbook()
+            for _ in range(20): book.active.append(['Not a plan'])
+            book.save(path)
+            handles = []
+            original = openpyxl.load_workbook
+            def load(*args, **kwargs):
+                workbook = original(*args, **kwargs)
+                handles.append(workbook._archive.fp)
+                return workbook
+            with patch('inspection_app.reconciliation.openpyxl.load_workbook', load):
+                try:
+                    reconcile_workbook(Store(root / 'plan.db'), path)
+                except ValueError:
+                    self.assertTrue(handles[0].closed, 'Rejected plan must release its Windows file handle')
+                else:
+                    self.fail('Invalid plan should be rejected')

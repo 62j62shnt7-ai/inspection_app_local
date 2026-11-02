@@ -1,0 +1,21 @@
+{
+  "source": "Master_Inspection_Plan_Cleaned_Draft.xlsx",
+  "sha256": "54d2c7b976f0781d7a9e2b322cc68702b8ab8b4aee38ce6538aa746a8e8b3e13",
+  "assets": 1066,
+  "inspection_rows": 1324,
+  "open_issues": 1103,
+  "issues_by_rule": {
+    "condition-review-required": 418,
+    "source-review": 151,
+    "source-review-item": 213,
+    "identity-collision": 6,
+    "chronology": 19,
+    "required-name": 1,
+    "required-context": 265,
+    "formula-cache-missing": 30
+  },
+  "eligible_without_owner_verification": 0,
+  "excluded": 1066,
+  "recovery_assets_equal_ignoring_fresh_edit_tokens": true,
+  "source_unchanged": true
+}

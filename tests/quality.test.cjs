@@ -7,6 +7,14 @@ test('verification selection includes only explicitly checked field names',()=>{
  assert.deepEqual(Array.from(ctx.checkedVerificationFields([{checked:true,value:'name'},{checked:false,value:'family'}])),['name']);
 });
 
+test('quality issues label warning and blocking severity with actionable rows',()=>{
+ const nodes={};function node(tag='div',text=''){return {tagName:tag,textContent:text,children:[],className:'',style:{},append(...items){this.children.push(...items)},replaceChildren(...items){this.children=items},setAttribute(){}}}
+ let openedAsset;const ctx=vm.createContext({assets:[{id:"a",name:"Vessel 101"}],assetDisplayName:a=>a.name,qualityState:{page:1,pages:1,filtered_issue_count:2,quality:{issues:[{severity:'blocking',asset_id:'a',field:'name',message:'Missing description',rule_id:'required'},{severity:'warning',asset_id:'b',field:'name',message:'Check source',rule_id:'source-review'}],issue_count:2,affected_assets:2,revision:1},readiness:{eligible_count:0,excluded_count:2,excluded:[]}},$:selector=>nodes[selector]??=node(),el:(tag,text,cls)=>{const n=node(tag,text??'');n.className=cls||'';return n},verificationLabel:value=>value,openEditor(id){openedAsset=id},openIssueReview(){},markFieldState(){}});
+ let start=source.indexOf('function renderQuality('),depth=0,opened=false,end=-1;for(let i=source.indexOf('{',start);i<source.length;i++){if(source[i]==='{'){depth++;opened=true}if(source[i]==='}'){depth--;if(opened&&depth===0){end=i+1;break}}}vm.runInContext(source.slice(start,end),ctx);ctx.renderQuality();
+ const all=n=>[n,...n.children.flatMap(all)],rows=all(nodes['#quality-rows']).filter(n=>n.tagName==='tr');assert.equal(rows.length,2);const badges=all(nodes['#quality-rows']).filter(n=>n.className.startsWith('quality-severity-badge'));
+ assert.match(nodes['#quality-summary'].textContent,/passed checks/i);assert.doesNotMatch(nodes['#quality-summary'].textContent,/verified and eligible/i);assert.equal(rows[0].children[1].textContent,'Vessel 101');assert.equal(rows[1].children[1].textContent,'b');rows[0].children[4].children[0].onclick();assert.equal(openedAsset,'a');assert.deepEqual(badges.map(n=>n.textContent),['Blocking issue','Warning']);assert.ok(badges[0].className.includes('blocking'));assert.ok(badges[1].className.includes('warning'));
+});
+
 test('verification explains engineering fields without exposing storage keys or JSON',()=>{
  const ctx=vm.createContext({});vm.runInContext(source,ctx);
  assert.equal(ctx.verificationLabel('inspections.OSI.next_inspection_month'),'OSI · Next inspection month');

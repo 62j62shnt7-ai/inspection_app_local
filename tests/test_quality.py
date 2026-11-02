@@ -19,9 +19,10 @@ class QualityTests(unittest.TestCase):
         from inspection_app.quality import assess_readiness
         asset = self.asset()
         report = assess_readiness(self.store)
-        self.assertEqual(report['eligible'], [])
-        self.assertEqual(report['excluded'][0]['asset_id'], asset['id'])
-        self.assertTrue(any('verif' in reason.lower() for reason in report['excluded'][0]['reasons']))
+        self.assertEqual(report['eligible'], [asset['id']])
+        self.assertEqual(report['excluded'], [])
+        from inspection_app.quality import asset_verification
+        self.assertFalse(any(f['verified'] for f in asset_verification(self.store,asset['id'])['fields']))
 
     def test_verification_is_bound_to_field_values_and_preserves_unchanged_fields(self):
         from inspection_app.quality import verify_fields, assess_readiness, verification_fields
@@ -31,10 +32,11 @@ class QualityTests(unittest.TestCase):
         current = self.store.get_asset(asset['id'])
         self.store.save_asset(asset['id'], {'name': 'Revised description'}, current['version'])
         report = assess_readiness(self.store)
-        self.assertEqual(report['eligible'], [])
-        reasons = report['excluded'][0]['reasons']
-        self.assertTrue(any('name' in reason for reason in reasons))
-        self.assertFalse(any('family' in reason for reason in reasons))
+        self.assertEqual(report['eligible'], [asset['id']])
+        from inspection_app.quality import asset_verification
+        verified={f['field']:f['verified'] for f in asset_verification(self.store,asset['id'])['fields']}
+        self.assertFalse(verified['name'])
+        self.assertTrue(verified['family'])
 
     def test_overdue_verified_condition_is_warning_without_exclusion(self):
         from inspection_app.quality import verify_fields, assess_readiness, verification_fields
@@ -67,7 +69,7 @@ class QualityTests(unittest.TestCase):
         self.asset()
         asset=self.store.save_asset(None,{'name':'Missing context','family':'Flowline'},None)
         report=scan_quality(self.store)
-        issue=next(i for i in report['issues'] if i['asset_id']==asset['id'] and i['rule_id']=='required-context')
+        issue=next(i for i in report['issues'] if i['asset_id']==asset['id'] and i['rule_id']=='required-applicability')
         with self.assertRaisesRegex(ValueError,'evidence|rationale'):
             resolve_issue(self.store,issue['issue_id'],report['revision'],'accepted_exception','')
         self.store.save_asset(asset['id'],{'name':'Changed'},asset['version'])
@@ -77,6 +79,8 @@ class QualityTests(unittest.TestCase):
     def test_snapshot_is_immutable_and_lists_every_excluded_record(self):
         from inspection_app.quality import assess_readiness, publish_snapshot
         asset=self.asset()
+        asset['inspections'][0]['next_inspection_month']=None
+        asset=self.store.save_asset(asset['id'],asset,asset['version'])
         report=assess_readiness(self.store)
         snapshot=publish_snapshot(self.store,report['revision'],'Before cleaning')
         self.assertEqual(snapshot['excluded'][0]['asset_id'],asset['id'])
@@ -198,7 +202,7 @@ class QualityTests(unittest.TestCase):
         resolve_issue(self.store,issue['issue_id'],report['revision'],'accepted_exception','Separate equipment confirmed by drawing')
         self.assertEqual(next(i for i in scan_quality(self.store)['issues'] if i['issue_id']==issue['issue_id'])['state'],'accepted_exception')
 
-    def test_missing_archived_source_blocks_trusted_snapshot(self):
+    def test_missing_archived_source_warns_without_blocking_trusted_snapshot(self):
         from inspection_app.quality import verify_fields,verification_fields,assess_readiness
         from inspection_app.exports import export_workbook
         from inspection_app.imports import preview_import,apply_import
@@ -208,8 +212,9 @@ class QualityTests(unittest.TestCase):
         self.assertEqual(assess_readiness(self.store)['eligible'],[asset['id']])
         for archive in (Path(self.tmp.name)/'source-archives').glob('*.xlsx'):archive.unlink()
         report=assess_readiness(self.store)
-        self.assertEqual(report['eligible'],[])
-        self.assertTrue(any('archive' in reason.lower() for reason in report['excluded'][0]['reasons']))
+        self.assertEqual(report['eligible'],[asset['id']])
+        self.assertEqual(report['excluded'],[])
+        self.assertTrue(any(i['rule_id']=='source-archive-integrity' for i in report['warnings']))
 
     def test_incoming_blank_does_not_erase_populated_unverified_month(self):
         from inspection_app.exports import export_workbook
@@ -239,7 +244,7 @@ class QualityTests(unittest.TestCase):
         snapshot=publish_snapshot(self.store,report['revision'],'Before correction')
         self.store.save_asset(asset['id'],{'name':'Changed later'},asset['version'])
         saved=get_snapshot(self.store,snapshot['snapshot_id'])
-        self.assertEqual(saved['excluded'][0]['name'],'V-101')
+        self.assertEqual(saved['assets'][0]['name'],'V-101')
         self.assertEqual(list_snapshots(self.store)[0]['name'],'Before correction')
 
     def test_bulk_verification_preview_shows_all_selected_required_values(self):

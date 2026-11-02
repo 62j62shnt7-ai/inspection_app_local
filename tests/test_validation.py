@@ -35,3 +35,14 @@ class ValidationTests(unittest.TestCase):
         from inspection_app.validation import validate_record
         rules={i['rule_id'] for i in validate_record({'id':'m','name':'M-1','family':'Manifold','record_status':'Active','location_from':'North','inspections':[{'inspection_type':'OSI','applicable':'No'}]})}
         self.assertNotIn('unclassified-family',rules)
+
+    def test_historical_date_flags_are_superseded_by_passing_current_checks(self):
+        from inspection_app.validation import validate_record
+        reason='No unambiguous month; original value retained for review.'
+        asset={'id':'v','name':'V','family':'Vessel / tank','record_status':'Active','location_from':'North',
+               'inspections':[{'inspection_type':'OSI','applicable':'Yes','next_inspection_month':'2027-01','review_status':'Review','review_reason':'last inspection: '+reason}, {'inspection_type':'Internal','applicable':'No'}],
+               'review_items':[{'review_id':'last','field':'OSI: last inspection','review_status':'Review','reason':reason}]}
+        findings=validate_record(asset)
+        self.assertEqual(findings,[])
+        asset['inspections'][0]['review_reason']+=' Additional independent concern.'
+        self.assertIn('source-review',[i['rule_id'] for i in validate_record(asset)])

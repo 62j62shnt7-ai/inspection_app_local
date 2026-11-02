@@ -15,9 +15,10 @@
 - Treat `data/`, backups, recovery packages and source workbooks as user data. Never alter or delete them for development or tests; use disposable data directories and retain independent backups before migrations or recovery changes.
 - Preserve permanent identities, source evidence, audit history, backups, and export/import compatibility. Preview and resolve ambiguous matches rather than guessing or silently overwriting populated or verified data.
 - Importing or editing is not verification. Keep field-level verification, blockers, snapshot exclusions and historical evidence intact. Do not infer engineering conclusions or claim regulatory or safety certification.
+- Snapshot eligibility uses the owner-approved automatic quality criteria in `docs/data-contract.md` (rules version 2). Passing checks is distinct from optional manual verification; do not reintroduce blanket verification, location, or condition review-by requirements. Preserve source evidence while deriving current review status from current rules.
 - Maintain local-only operation and macOS/Windows compatibility. Native Windows and owner acceptance remain unverified unless tested; do not claim otherwise.
 
 ## Verification
 - Python suite: `python3 -m unittest discover -s tests` (uses disposable databases). A listening-socket test may require permission for localhost binding.
-- Browser logic: `node --test tests/*.test.cjs`. Run relevant focused tests first; add broader checks appropriate to the changes. For UI changes, check the affected flow in a browser with disposable data when feasible.
+- Browser logic: `node --test tests/*.test.cjs`. Run relevant focused tests first; add broader checks appropriate to the changes. For UI changes, check the affected flow in a live browser using disposable data; if a live check cannot be completed, report the reason and what remains unverified.
 - For import/export, migrations, backups or recovery, test round trips and failure paths relevant to the change without using the operational database.

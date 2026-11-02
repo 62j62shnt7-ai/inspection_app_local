@@ -6,9 +6,9 @@ Implementation remains a testing candidate on `codex/reliable-master-database`. 
 
 - Existing original layouts, header validation, tab selection, permanent IDs and optional Import Decisions remain supported. New context conflicts require review. The established EPF/MOP compatibility fallback is preserved.
 - Versioned migrations with pre-upgrade backups, non-reusable edit tokens and transactional correction events cover manual writes, imports, reconciliation, clear, bulk corrections and consolidation. Restore refreshes tokens.
-- Shared calendar parsing, structural validation, reproducible engineering findings, required applicability/completeness checks, review-by warnings and missing formula-cache warnings.
+- Shared calendar parsing, structural validation, reproducible engineering findings, owner-approved automatic applicability/completeness checks, optional review-by warnings and missing formula-cache warnings.
 - Durable import previews, exact source archives, checksums, row accounting, explicit unclassified-row acknowledgement, restart/resume, previous-source/current/incoming comparison, protection of verified corrections and populated values against incoming blanks, retained linked rows and explicit consolidation aliases.
-- Persistent issues, evidence-backed resolutions, field-level verification/history, related-decision invalidation, readiness assessment and immutable named snapshots with a complete exclusion list. Accepted source review decisions drive schedule summaries without rewriting raw source evidence.
+- Persistent issues, evidence-backed resolutions, field-level verification/history, related-decision invalidation, automatic readiness assessment without mandatory manual verification and immutable named snapshots with a complete exclusion list. Accepted source review decisions drive schedule summaries without rewriting raw source evidence.
 - Bulk normalization/set/clear previews, explicit selection across pages, atomic application and guarded compensating reverts.
 - Full recovery packages containing database and source archives, semantic metadata validation, checksum validation, complete archive inventories, machine-local backup-status reset on restore and separate local/copy failure states. Default copy destination is `data/recovery-copies/`; it can be changed in the UI.
 - Guided import stages, empty-state guidance, active-filter controls, readable verification labels, optional-field disclosure, month pickers, controlled applicability/status inputs, recoverable browser drafts, discard warnings, light/dark/system themes, focus indicators and narrow-screen layout rules.
@@ -33,13 +33,15 @@ An independent reviewer reproduced six lifecycle defects; regression tests cover
 - Complete keyboard/screen-reader, contrast, zoom/reflow and target-size acceptance across the full application. Responsive styling and focus indicators alone do not establish WCAG 2.2 AA.
 - Run the packaged candidate on native Windows and macOS launchers, including actual downloads/printing and unavailable/full/read-only backup destinations.
 - Extend interruption/disk-failure testing beyond the covered atomic transactions, stale previews, checksum errors and unavailable-folder cases.
-- Review the combined working change set and its pre-existing modifications before committing or integrating it. No merge, deployment or operational migration is included in this candidate.
+- Complete integration/release review before merging or deploying. Committing this candidate does not constitute deployment, owner acceptance, or an operational migration.
 
 ## Rollout and rollback
 
 Close the running app, retain the entire original `data/` folder and create a verified full recovery package before rollout. Start the candidate against a copied data directory first. Migrations create an additional database safety copy. Keep the old application and untouched data copy together for rollback; do not point an older app at an upgraded database. Choose and test an appropriate backup-copy destination before relying on it. All copies are retained until a retention policy is explicitly chosen.
 
-## Latest verification checkpoint
+## Historical verification checkpoints
+
+The checkpoints below predate automatic quality criteria version 2. Their zero-eligible inventories describe the former mandatory-verification policy, not the current readiness behavior.
 
 ### Original workbook disposable acceptance — 2 November 2026
 
@@ -62,3 +64,17 @@ The candidate has not been operationally deployed or independently release-appro
 Inspection last/next months, condition review-by months, and the dashboard's custom through-month filter now share one combined field: type `YYYY-MM` directly or open its attached picker to choose from a 12-month grid under a year heading. There are no separate month/year inputs or day calendar. Blank values stay blank. Editor month changes continue through existing draft persistence, while dashboard filtering does not mark the editor dirty.
 
 Verification: the focused frontend tests, all 66 JavaScript tests, all 146 Python tests (one sandbox socket test skipped), JavaScript syntax check, and `git diff --check` pass. This increment has not received an owner walkthrough or full browser/screen-reader acceptance; those remain release gates.
+
+
+## Current automatic-quality checkpoint — 2 November 2026
+
+The owner approved exception-based review and automatic snapshot inclusion for entries meeting the agreed criteria. The definitive policy is in [data-contract.md](data-contract.md); its design and implementation record are in [the criteria design](superpowers/specs/2026-11-02-automatic-quality-criteria-design.md) and [the completed plan](superpowers/plans/2026-11-02-automatic-quality-criteria.md). This supersedes the historical mandatory manual-verification eligibility policy above.
+
+- Entries display **Passed checks** or **Needs checking**. Manual field verification remains optional, retains its audit history, and continues to protect verified values against incoming differences.
+- Valid overdue dates stay overdue, without becoming data-quality conflicts. Recorded scheduling conditions require no next month or review-by month. Missing locations and blank/Never last dates pass. Missing names/families/plans/applicability, ambiguous dates, chronology errors, duplicate identifiers, and incompatible internal inspections still require checking.
+- Generated historical date flags remain source evidence; current checks decide whether a review is needed. Source archive defects are nonblocking warnings. Snapshots preserve warnings, exclusions and accepted exceptions and record `eligibility_basis: automatic_quality_checks` with rules version 2. Previously saved manifests are unchanged.
+- A read-only SQLite backup of the operational database, with copied source archives, was assessed in a disposable directory: **1,066 assets, 948 eligible, 118 excluded, 148 open issues**. Issues comprised 97 ambiguous dates, 25 missing schedules, 19 chronology findings, 6 identifier collisions and 1 missing name. These are data-rule results, not engineering certification or owner acceptance.
+- Automated verification passed **168 Python tests and 75 Node tests** on macOS. A live disposable browser showed per-entry status badges, condition schedules separated from the attention queue, asset-level blockers visible in review, and valid overdue schedules retained. It saved a snapshot containing two passing examples and two exclusions, with **zero manual verification records**.
+- Focused independent review identified two summary inconsistencies: omitted asset-level blockers and technical-field incoming-difference fingerprints evaluated after trimming technical details. Both were fixed with failing-then-passing regression tests; the final focused re-review reported no remaining material findings. This is not a complete release or security sign-off.
+
+No operational data or source workbooks were modified for development. Existing uncommitted UI work was preserved and checked with the combined automated suites. Native Windows execution, full accessibility acceptance, and owner acceptance remain outstanding. Close and reopen the running application, then refresh Data quality to load the new Python criteria.

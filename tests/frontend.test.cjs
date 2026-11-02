@@ -247,9 +247,71 @@ test('month entry combines typing with a year and month-grid popup without day c
  assert.equal(status.value,'Legacy status');assert.ok(status.children.some(o=>o.value==='Legacy status'));
 });
 
+test('field state cues show text for review, changed, verified and neutral fields',()=>{
+ function node(tag='label',text=''){return {tagName:tag,textContent:text,children:[],classes:new Set(),classList:{add(value){this.owner.classes.add(value)},owner:null},append(...items){this.children.push(...items)}}}
+ const el=(tag,text,cls)=>{const item=node(tag,text);if(cls)item.className=cls;item.classList.owner=item;return item};
+ const ctx=vm.createContext({el});vm.runInContext(getFunction('markFieldState'),ctx);
+ for(const [state,label,cls] of [['review','Needs review','field-state-review'],['changed','Changed · not verified','field-state-changed'],['verified','Verified for current value','field-state-verified'],['','', '']]){
+  const field=node();field.classList.owner=field;ctx.markFieldState(field,state);assert.equal(field.children[0]?.textContent||'',label);if(cls){assert.ok(field.classes.has(cls));assert.equal(field.children[0].className,'field-state-label '+cls)}else assert.equal(field.children.length,0);
+ }
+});
+
+test('register and reconciliation search use search controls while asset numbers stay free text',()=>{
+ const html=fs.readFileSync('static/index.html','utf8');assert.match(html,/<input type="search" aria-label="Search assets" id="search"/);assert.match(html,/<input type="search" id="recon-search"/);assert.match(html,/<input id="recon-year" type="number"/);
+ function node(tag='div',text=''){return {tagName:tag,textContent:text,value:'',type:tag==='input'?'text':'',children:[],classList:{add(){}},append(...items){this.children.push(...items)}}}
+ const ctx=vm.createContext({el:node,editorDirty:false});vm.runInContext(getFunction('field'),ctx);const parent=node();ctx.field(parent,'Asset number','P-101A',()=>{});assert.equal(parent.children[0].children[0].type,'text');assert.equal(parent.children[0].children[0].value,'P-101A');
+});
+
 test('yearly export omissions explain review, undated and earlier due months',()=>{
  const ctx=vm.createContext({active:a=>a.record_status!=='Archived',applicable:i=>i.applicable==='Yes'});vm.runInContext(getFunction('yearlyOmissions'),ctx);
  const records=[{id:'a',name:'A',inspections:[{inspection_type:'OSI',applicable:'Yes',review_status:'Review',next_inspection_month:'2027-04'},{inspection_type:'Internal',applicable:'Yes',next_inspection_month:null}]},{id:'b',name:'B',inspections:[{inspection_type:'OSI',applicable:'Yes',next_inspection_month:'2026-01'}]}];
  const report=ctx.yearlyOmissions(records,'2027','','',false);
  assert.deepEqual(Array.from(report,r=>r.reason),['Needs review','No next month / scheduling condition','Due before selected year; carry-over is off']);
+});
+test('editor field context shows only matching saved verification and issues and removes verification when edited',()=>{
+ const ctx=vm.createContext({el:(tag,text,cls)=>({tag,textContent:text,className:cls}),markFieldState(label,state,text){label.states.push([state,text])}});
+ vm.runInContext(getFunction('decorateEditorField'),ctx);
+ const listeners={},label={states:[],children:[],append(x){this.children.push(x)},closest(){return null},querySelector(selector){return selector.includes('verified')?{remove(){}}:null},addEventListener(k,fn){listeners[k]=fn},classList:{remove(){}}};
+ ctx.decorateEditorField(label,'name',{fields:[{field:'name',verified:true}],version:3},[{field:'name',severity:'blocking',message:'Name needed'},{field:'family',message:'Other'}],3);
+ assert.equal(label.states[0][0],'verified');assert.match(label.children[0].textContent,/Name needed/);assert.equal(label.children.length,1);
+ listeners.input();assert.equal(label.states.at(-1)[0],'changed');
+ const stale={...label,states:[],children:[]};ctx.decorateEditorField(stale,'name',{fields:[{field:'name',verified:true}],version:2},[],3);assert.equal(stale.states.length,0);
+});
+
+test('a recovered unsaved draft never labels its values as verified',()=>{
+ const ctx=vm.createContext({editorDirty:true,el:()=>({}),markFieldState(label,state,text){label.states.push([state,text])}});
+ vm.runInContext(getFunction('decorateEditorField'),ctx);
+ const label={states:[],append(){},closest(){return null},addEventListener(){},classList:{remove(){}}};
+ ctx.decorateEditorField(label,'name',{version:3,fields:[{field:'name',verified:true}]},[],3);
+ assert.notEqual(label.states[0]?.[0],'verified');
+});
+
+test('new asset fields render without a verification response',()=>{
+ const ctx=vm.createContext({editorDirty:false,el:()=>({}),markFieldState(){}});
+ vm.runInContext(getFunction('decorateEditorField'),ctx);
+ const label={append(){},closest(){return null},addEventListener(){}};
+ assert.doesNotThrow(()=>ctx.decorateEditorField(label,'name',null,[],undefined));
+});
+
+test('service status highlights require an actual reconciliation update',()=>{
+ assert.match(source,/recentReconUpdates\[id\]\?\.asset\?\.\[key\]!==undefined&&recentReconUpdates\[id\]\.asset\[key\]===editing\[key\]/);
+});
+
+test('dashboard separates condition schedules from inspections needing checking',()=>{
+ function node(){return {value:'',children:[],dataset:{},classList:{add(){}},append(...xs){this.children.push(...xs)},replaceChildren(...xs){this.children=xs},setAttribute(){}}}
+ const nodes={},queues=[];
+ const ctx=vm.createContext({$:s=>nodes[s]??=node(),assets:[{name:'Condition',inspections:[{applicable:'Yes',scheduling_condition:'OOS'}]},{name:'Problem',inspections:[{applicable:'Yes',review_status:'Review',review_reason:'Missing schedule'}]}],Date,el:()=>node(),active:()=>true,applicable:i=>i.applicable==='Yes',currentMonth:()=> '2026-11',addMonths:()=> '2027-02',queuePanel(title,description,rows){queues.push({title,rows});return node()},renderSheetShortcuts(){}});
+ vm.runInContext(getFunction('renderDashboard'),ctx);ctx.renderDashboard();
+ assert.deepEqual(Array.from(queues.find(q=>q.title==='Needs a closer look').rows,r=>r[1].name),['Problem']);
+ assert.deepEqual(Array.from(queues.find(q=>q.title==='Scheduled by condition').rows,r=>r[1].name),['Condition']);
+});
+
+test('register local review and attention filters agree with asset and schedule checks',()=>{
+ const filters={search:'',sheet:'',status:'active',family:'',service:'','review-filter':'review','due-filter':'',period:'3'};
+ const ctx=vm.createContext({$:s=>({value:filters[s.slice(1)]}),onlyRecentRecon:false,onlyConfirmedRecon:false,currentMonth:()=> '2026-11',addMonths:()=> '2027-02',applicable:i=>i.applicable==='Yes',active:()=>true,matchesAssetSearch:()=>true});
+ vm.runInContext(getFunction('matches'),ctx);
+ assert.equal(ctx.matches({quality_status:'Needs checking',asset_review_reasons:['Missing name']}),true);
+ filters['review-filter']='';filters['due-filter']='attention';
+ assert.equal(ctx.matches({inspections:[{applicable:'Yes',scheduling_condition:'OOS'}]}),false);
+ assert.equal(ctx.matches({asset_review_reasons:['Missing name']}),true);
 });

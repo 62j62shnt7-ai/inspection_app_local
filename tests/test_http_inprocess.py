@@ -227,7 +227,7 @@ class HttpInProcessTests(unittest.TestCase):
         asset=self.store.save_asset(None,{'name':'Synthetic vessel','family':'Vessel / tank','record_status':'Active','location_from':'North','inspections':[{'inspection_type':'OSI','applicable':'Yes','next_inspection_month':'2027-04'},{'inspection_type':'Internal','applicable':'No'}]},None)
         self.assertEqual(self.request('GET','/quality.js')[0],200)
         status,body=self.request('POST','/api/quality/query',json.dumps({'page':1,'size':50}).encode(),headers)
-        self.assertEqual(status,200);self.assertEqual(json.loads(body)['readiness']['excluded_count'],1)
+        self.assertEqual(status,200);self.assertEqual(json.loads(body)['readiness']['excluded_count'],0)
         payload={'asset_id':asset['id'],'version':asset['version'],'fields':list(verification_fields(asset)),'evidence':'Synthetic acceptance fixture checked'}
         status,body=self.request('POST','/api/verification',json.dumps(payload).encode(),headers)
         self.assertEqual(status,200)

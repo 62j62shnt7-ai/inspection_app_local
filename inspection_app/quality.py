@@ -124,26 +124,35 @@ def canonical_identifier(value):
     return '' if text in ('','n/a','na','none','null','unknown','-','—') else text
 
 
-def _scan(conn, current_month):
-    assets = read_assets(conn)
-    findings=[]
-    # Context conflicts are review candidates, never automatic consolidation.
+def identity_findings(assets):
     identities={}
+    by_id={a['id']:a for a in assets}
     for asset in assets:
         for key in ('tag_original','asset_number_original'):
             value=canonical_identifier(asset.get(key))
-            if value: identities.setdefault((key,value),set()).add(asset['id'])
+            if value:identities.setdefault((key,value),set()).add(asset['id'])
+    result={a['id']:[] for a in assets}
+    for asset in assets:
+        for key in ('tag_original','asset_number_original'):
+            value=canonical_identifier(asset.get(key))
+            peers=identities.get((key,value),set())
+            if value and len(peers)>1:
+                result[asset['id']].append({'rule_id':'identity-collision','asset_id':asset['id'],'field':key,'severity':'blocking','message':'Identifier is shared by multiple assets; review identity','value_fingerprint':fingerprint([[peer,verification_fields(by_id[peer])['identity']] for peer in sorted(peers)]),'rules_version':RULES_VERSION})
+    return result
+
+
+def _scan(conn, current_month):
+    assets = read_assets(conn)
+    findings=[]
+    collisions=identity_findings(assets)
     by_id={a['id']:a for a in assets}
     from .import_batches import source_archive_problems
     archive_problems=source_archive_problems(conn)
     for asset in assets:
         found=validate_record(asset,current_month)
         for digest in archive_problems.get(asset['id'],set()):
-            found.append({'rule_id':'source-archive-integrity','asset_id':asset['id'],'field':'source_archive.'+digest,'severity':'blocking','message':'Original source archive is missing or damaged. Restore a complete recovery package before trusting this record.','value_fingerprint':digest,'rules_version':RULES_VERSION})
-        for key in ('tag_original','asset_number_original'):
-            value=canonical_identifier(asset.get(key))
-            if value and len(identities[(key,value)])>1:
-                found.append({'rule_id':'identity-collision','asset_id':asset['id'],'field':key,'severity':'blocking','message':'Identifier is shared by multiple assets; review identity','value_fingerprint':fingerprint([[peer,verification_fields(by_id[peer])['identity']] for peer in sorted(identities[(key,value)])]),'rules_version':RULES_VERSION})
+            found.append({'rule_id':'source-archive-integrity','asset_id':asset['id'],'field':'source_archive.'+digest,'severity':'warning','message':'Original source archive is missing or damaged. Data checks can pass, but source evidence is unavailable; restore a complete recovery package.','value_fingerprint':digest,'rules_version':RULES_VERSION})
+        found.extend(collisions[asset['id']])
         for finding in found:
             # Entire relevant record fingerprint ensures stale decisions reopen.
             finding['value_fingerprint']=issue_fingerprint(asset,finding)
@@ -152,6 +161,7 @@ def _scan(conn, current_month):
             conn.execute('INSERT OR IGNORE INTO quality_issues(issue_id,asset_id,rule_id,field,severity,message,fingerprint,state) VALUES (?,?,?,?,?,?,?,?)',
                          (issue_id,asset['id'],finding['rule_id'],finding['field'],finding['severity'],finding['message'],finding['value_fingerprint'],'open'))
             conn.execute("UPDATE quality_issues SET state='open',evidence=NULL,resolved_at=NULL WHERE issue_id=? AND state='superseded'",(issue_id,))
+            conn.execute('UPDATE quality_issues SET severity=?,message=? WHERE issue_id=?',(finding['severity'],finding['message'],issue_id))
             findings.append(issue_id)
     # Preserve incoming conflicts until explicitly reviewed.
     existing_ids={a['id'] for a in assets}
@@ -186,13 +196,11 @@ def _readiness_from_scan(conn, assets, issues):
     by_asset={}
     for issue in issues: by_asset.setdefault(issue['asset_id'],[]).append(issue)
     for asset in assets:
-        verified=current_verifications(conn,asset)
         reasons=[i['message'] for i in by_asset.get(asset['id'],[]) if i['severity']=='blocking' and i['state']=='open']
-        reasons.extend('Verify '+field for field in required_fields(asset) if field not in verified)
         if reasons: excluded.append({'asset_id':asset['id'],'name':asset['name'],'reasons':list(dict.fromkeys(reasons))})
         else: eligible.append(asset['id'])
     warnings=[i for i in issues if i['severity']=='warning' and i['state']=='open']
-    return {'eligible':eligible,'excluded':excluded,'warnings':warnings,'asset_count':len(assets),'revision':conn.execute('SELECT value FROM version_clock WHERE id=1').fetchone()[0],'rules_version':RULES_VERSION}
+    return {'eligible':eligible,'excluded':excluded,'warnings':warnings,'eligibility_basis':'automatic_quality_checks','asset_count':len(assets),'revision':conn.execute('SELECT value FROM version_clock WHERE id=1').fetchone()[0],'rules_version':RULES_VERSION}
 
 
 @serialized

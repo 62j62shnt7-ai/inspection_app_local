@@ -6,27 +6,43 @@ import re
 import sqlite3
 from .store import serialized
 from .months import validate_month
+from .validation import scheduling_condition_present
 
 
 def read_summaries(conn):
-    rows=conn.execute("SELECT id,name,family,version,json_remove(details,'$.source_cells','$.technical_details') FROM assets ORDER BY name COLLATE NOCASE")
+    rows=conn.execute("SELECT id,name,family,version,json_remove(details,'$.source_cells') FROM assets ORDER BY name COLLATE NOCASE")
     assets=[{**json.loads(raw),'id':a,'name':n,'family':f,'version':v} for a,n,f,v,raw in rows]
-    from .quality import issue_fingerprint
-    from .validation import validate_record,fingerprint
+    from .quality import issue_fingerprint,identity_findings,field_fingerprint
+    from .validation import validate_record,fingerprint,source_review_fields,imported_date_item
     decisions={(asset_id,rule,field,fp):state for asset_id,rule,field,fp,state in conn.execute("SELECT asset_id,rule_id,field,fingerprint,state FROM quality_issues WHERE state IN ('resolved','accepted_exception')")}
+    collisions=identity_findings(assets)
+    incoming={}
+    for asset_id,field,severity,message,expected in conn.execute("SELECT asset_id,field,severity,message,expected_fingerprint FROM quality_issues WHERE rule_id='incoming-difference' AND state='open'"):
+        incoming.setdefault(asset_id,[]).append((field,severity,message,expected))
     current_month=date.today().strftime('%Y-%m')
     for asset in assets:
-        findings=validate_record(asset,current_month)
+        findings=validate_record(asset,current_month)+collisions[asset['id']]
+        open_blockers=[i for i in findings if i['severity']=='blocking' and (asset['id'],i['rule_id'],i['field'],issue_fingerprint(asset,i)) not in decisions]
+        source_fields_all={field for inspection in asset.get('inspections',[]) for field in source_review_fields(asset,inspection)}
+        asset_reasons=[i['message'] for i in open_blockers if not i['field'].startswith('inspections.') and i['field'] not in source_fields_all]
+        incoming_reasons=[message for field,severity,message,expected in incoming.get(asset['id'],[]) if severity=='blocking' and (expected is None or field_fingerprint(asset,field)==expected)]
+        asset['asset_review_reasons']=list(dict.fromkeys(asset_reasons+incoming_reasons))
+        asset['quality_status']='Needs checking' if open_blockers or incoming_reasons else 'Passed checks'
         for inspection in asset.get('inspections',[]):
-            related=[i for i in findings if i['field'].startswith('inspections.'+inspection['inspection_type']+'.') and i['rule_id'] in ('source-review','chronology','internal-family')]
+            source_fields=source_review_fields(asset,inspection)
+            related=[i for i in findings if i['field'] in source_fields or (i['field'].startswith('inspections.'+inspection['inspection_type']+'.') and i['severity']=='blocking')]
             open_findings=[i for i in related if (asset['id'],i['rule_id'],i['field'],issue_fingerprint(asset,i)) not in decisions]
             if open_findings:
                 inspection['review_status']='Review';inspection['review_reason']='; '.join(i['message'] for i in open_findings)
-            elif related and inspection.get('review_status')=='Review':inspection['review_status']='Accepted exception'
+            elif inspection.get('review_status')=='Review':
+                inspection['review_status']='Accepted exception' if related else 'Passed checks'
+                inspection['review_reason']=''
         for item in asset.get('review_items',[]):
             field='review_items.'+str(item.get('review_id') or fingerprint(item))
             finding=next((f for f in findings if f['field']==field),None)
             if finding and (asset['id'],finding['rule_id'],field,issue_fingerprint(asset,finding)) in decisions:item['review_status']='Accepted exception'
+            elif not finding and imported_date_item(asset,item):item['review_status']='Passed checks'
+    for asset in assets:asset.pop('technical_details',None)
     return assets
 
 
@@ -39,7 +55,7 @@ def matches_summary(asset,filters):
     if sheet and (bool(asset.get('source_sheet')) if sheet=='__manual__' else asset.get('source_sheet')!=sheet):return False
     for filter_key,key in [('family','family'),('service','service_status_original')]:
         if filters.get(filter_key) and asset.get(key)!=filters[filter_key]:return False
-    review=any(i.get('review_status')=='Review' for i in asset.get('inspections',[])+asset.get('review_items',[]))
+    review=asset.get('quality_status')=='Needs checking' or any(i.get('review_status')=='Review' for i in asset.get('inspections',[])+asset.get('review_items',[]))
     if filters.get('review') and (not review if filters['review']=='review' else review):return False
     text=' '.join(str(asset.get(k) or '').lower() for k in ('name','tag_original','asset_number_original','oracle_description','source_sheet','location_from','source_group','field','plant','pack_original'))
     for token in re.findall(r'[^\W_]+',str(filters.get('search') or '').lower()):
@@ -49,10 +65,11 @@ def matches_summary(asset,filters):
     if not due_filter:return True
     now=filters.get('current') or date.today().strftime('%Y-%m');end=filters.get('end') or now
     validate_month(now);validate_month(end)
+    if due_filter=='attention' and asset.get('asset_review_reasons'):return True
     for inspection in asset.get('inspections',[]):
         if inspection.get('applicable')!='Yes':continue
         due=inspection.get('next_inspection_month')
-        if due_filter=='attention' and (inspection.get('review_status')=='Review' or not due):return True
+        if due_filter=='attention' and (inspection.get('review_status')=='Review' or (not due and not scheduling_condition_present(inspection.get('scheduling_condition')))):return True
         if due_filter in ('shutdown','evaluation') and str(inspection.get('scheduling_condition') or '').lower()==('at next shutdown' if due_filter=='shutdown' else 'awaiting evaluation'):return True
         if inspection.get('review_status')=='Review':continue
         if due_filter=='undated' and not due:return True

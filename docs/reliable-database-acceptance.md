@@ -106,3 +106,11 @@ Synthetic interchange checks cover deleted and consolidated source identities, r
 A disposable post-reset browser exported a 2027 yearly workbook whose synthetic inspection row was inspected; HTTP checks rejected the old epoch. Full source suites passed 249 Python and 93 Node tests. This does not complete owner, native-platform, accessibility or interruption acceptance.
 
 The full Python suite included existing import and round-trip cases reading the bundled reference workbook, despite the repair request's synthetic-only test-data constraint. Those cases used disposable databases and outputs; newly added regressions used synthetic data.
+
+### Synthetic verification follow-up — 3 November 2026
+
+The full suite now uses generated workbook inputs and a synthetic packaging reference directory: 250 Python tests passed with ResourceWarnings enabled and an audit guard denying the test process opens under repository `reference/` and `data/`; 93 Node tests passed. No SQLite ResourceWarnings appeared after explicitly closing test-owned connections. The audit guard does not propagate to subprocesses. The generated interchange fixture does not establish compatibility with the owner's actual workbook or replace the previous 1,066-row input check.
+
+An injected ENOSPC during recovery-package writing preserved the existing destination and database and removed the partial file. Real full-disk and power-loss behavior remains unverified. The disposable 10,000-asset benchmark measured register page/filter 0.157/0.162 seconds and quality cold/warm 0.373/0.350 seconds on macOS arm64 / Python 3.14.6; the database was 78.44 MB.
+
+The earlier repair suite and initial follow-up suite also copied the bundled reference workbook into temporary packaging-test output, in addition to the previously disclosed direct reads. That input was only read and temporary output was deleted, but those runs did not satisfy the synthetic-only constraint. The guarded run followed the correction. The owner, native platform, accessibility, actual interruption and rollout gates above remain open.

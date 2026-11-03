@@ -313,7 +313,7 @@ class HttpInProcessTests(unittest.TestCase):
         from inspection_app.recovery import configure_backup_folder, backup_status
         root = Path(self.tmp.name)
         old = root/'legacy'/'master.db'; old.parent.mkdir()
-        with sqlite3.connect(old) as conn:
+        with closing(sqlite3.connect(old)) as conn, conn:
             conn.execute('CREATE TABLE assets(id TEXT PRIMARY KEY,name TEXT NOT NULL,family TEXT NOT NULL,version INTEGER NOT NULL)')
             conn.execute("INSERT INTO assets VALUES ('legacy','Original','Flowline',7)")
         legacy = Store(old)
@@ -323,7 +323,7 @@ class HttpInProcessTests(unittest.TestCase):
         original_hash = hashlib.sha256(target.read_bytes()).hexdigest()
         folder = root/'independent'; folder.mkdir()
         configure_backup_folder(self.store, str(folder))
-        with sqlite3.connect(self.store.db_path) as conn:
+        with closing(sqlite3.connect(self.store.db_path)) as conn, conn:
             raw = json.loads(conn.execute('SELECT contents FROM backup_settings WHERE id=1').fetchone()[0])
             raw['data_epoch'] = 'synthetic-epoch'
             conn.execute('UPDATE backup_settings SET contents=? WHERE id=1', (json.dumps(raw),))

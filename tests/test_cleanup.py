@@ -309,7 +309,7 @@ class CleanupTests(unittest.TestCase):
         Store(self.store.db_path)
         self.assertEqual(unrelated.read_text(), 'keep')
         self.assertFalse(list((self.root/'.cleanup-journals').glob('*.json')))
-        with sqlite3.connect(self.store.db_path) as conn:
+        with closing(sqlite3.connect(self.store.db_path)) as conn, conn:
             self.assertEqual(conn.execute('select count(*) from cleanup_receipts').fetchone()[0], 0)
 
     def test_folder_change_retries_when_pending_cleanup_remains_locked(self):

@@ -4,66 +4,71 @@ from pathlib import Path
 from inspection_app.imports import preview_import, apply_import
 from inspection_app.store import Store
 
-WORKBOOK = Path(__file__).resolve().parent.parent / 'reference' / 'Master_Inspection_Plan_Cleaned_Draft.xlsx'
+from synthetic_workbook import make_workbook
 
 class ImportTests(unittest.TestCase):
     def test_reimport_requires_preview_and_keeps_absent_assets(self):
         with tempfile.TemporaryDirectory() as tmp:
+            workbook_path, asset_id = make_workbook(Path(tmp))
             store = Store(Path(tmp) / 'plan.db')
-            first = preview_import(store, WORKBOOK)
+            first = preview_import(store, workbook_path)
             apply_import(store, first['token'])
             extra = store.save_asset(None, {'name': 'Extra', 'family': 'Flowline'}, None)
-            asset = store.get_asset('A03-0015')
+            asset = store.get_asset(asset_id)
             store.save_asset(asset['id'], {'name': 'Edited name'}, asset['version'])
-            second = preview_import(store, WORKBOOK)
+            second = preview_import(store, workbook_path)
             self.assertFalse(second['errors'])
-            self.assertEqual(second['updates'], 1066)
+            self.assertEqual(second['updates'], 1)
             self.assertEqual(second['retained'], 1)
-            self.assertEqual(store.get_asset('A03-0015')['name'], 'Edited name')
+            self.assertEqual(store.get_asset(asset_id)['name'], 'Edited name')
             apply_import(store, second['token'])
-            self.assertNotEqual(store.get_asset('A03-0015')['name'], 'Edited name')
+            self.assertNotEqual(store.get_asset(asset_id)['name'], 'Edited name')
             self.assertEqual(store.get_asset(extra['id'])['name'], 'Extra')
     def test_preview_compares_existing_and_incoming_records(self):
         with tempfile.TemporaryDirectory() as tmp:
+            workbook_path, asset_id = make_workbook(Path(tmp))
             store = Store(Path(tmp) / 'plan.db')
-            first = preview_import(store, WORKBOOK)
+            first = preview_import(store, workbook_path)
             apply_import(store, first['token'])
-            asset = store.get_asset('A03-0015')
+            asset = store.get_asset(asset_id)
             store.save_asset(asset['id'], {'name': 'Edited name'}, asset['version'])
-            preview = preview_import(store, WORKBOOK)
+            preview = preview_import(store, workbook_path)
             changed = next(row for row in preview['comparison'] if row['id'] == asset['id'])
             self.assertEqual(changed['status'], 'changed')
             self.assertTrue(any(field['field'] == 'Asset name' and field['current'] == 'Edited name' for field in changed['changes']))
 
     def test_replace_import_removes_absent_assets_and_backup_recovers_them(self):
         with tempfile.TemporaryDirectory() as tmp:
+            workbook_path, asset_id = make_workbook(Path(tmp))
             store = Store(Path(tmp) / 'plan.db')
             extra = store.save_asset(None, {'name': 'Extra', 'family': 'Flowline'}, None)
-            preview = preview_import(store, WORKBOOK)
+            preview = preview_import(store, workbook_path)
             result = apply_import(store, preview['token'], mode='replace')
             with self.assertRaises(KeyError): store.get_asset(extra['id'])
             from inspection_app.backups import restore_backup
             restored = Store(Path(tmp)/'restored.db')
             restore_backup(restored, result['backup'])
             self.assertEqual(restored.get_asset(extra['id'])['name'], 'Extra')
-            self.assertEqual(store.get_asset('A03-0015')['id'], 'A03-0015')
+            self.assertEqual(store.get_asset(asset_id)['id'], asset_id)
 
-    def test_reviewed_workbook_imports_with_all_records(self):
+    def test_synthetic_workbook_imports_with_all_records(self):
         with tempfile.TemporaryDirectory() as tmp:
+            workbook_path, asset_id = make_workbook(Path(tmp))
             store = Store(Path(tmp) / 'plan.db')
-            preview = preview_import(store, WORKBOOK)
-            self.assertEqual(preview['counts']['Assets'], 1066)
-            self.assertEqual(preview['counts']['Inspection Plan'], 1324)
+            preview = preview_import(store, workbook_path)
+            self.assertEqual(preview['counts']['Assets'], 1)
+            self.assertEqual(preview['counts']['Inspection Plan'], 1)
             self.assertFalse(preview['errors'])
             apply_import(store, preview['token'])
-            asset = store.get_asset('A03-0015')
+            asset = store.get_asset(asset_id)
             self.assertEqual(asset['inspections'][0]['next_inspection_month'], '2032-12')
-            self.assertTrue(any('Joint#15' in note['note_text'] for note in asset['notes']))
+            self.assertTrue(any('Synthetic joint note' in note['note_text'] for note in asset['notes']))
 
     def test_preview_is_invalidated_by_edits(self):
         with tempfile.TemporaryDirectory() as tmp:
+            workbook_path, asset_id = make_workbook(Path(tmp))
             store = Store(Path(tmp) / 'plan.db')
-            preview = preview_import(store, WORKBOOK)
+            preview = preview_import(store, workbook_path)
             store.save_asset(None, {'name': 'New asset', 'family': 'Flowline'}, None)
             with self.assertRaises(ValueError):
                 apply_import(store, preview['token'])
@@ -71,13 +76,15 @@ class ImportTests(unittest.TestCase):
     def test_preview_blocks_duplicate_inspection_types(self):
         import openpyxl
         with tempfile.TemporaryDirectory() as tmp:
-            workbook = openpyxl.load_workbook(WORKBOOK)
+            workbook_path, asset_id = make_workbook(Path(tmp))
+            workbook = openpyxl.load_workbook(workbook_path)
             sheet = workbook['Inspection Plan']
             row = [cell.value for cell in sheet[2]]
             row[0] = 'unique-duplicate-test'
             sheet.append(row)
             source = Path(tmp) / 'invalid.xlsx'
             workbook.save(source)
+            workbook.close()
             store = Store(Path(tmp) / 'plan.db')
             preview = preview_import(store, source)
             self.assertTrue(preview['errors'])

@@ -4,7 +4,7 @@ from pathlib import Path
 from inspection_app.store import Store
 from inspection_app.imports import preview_import, apply_import
 
-WORKBOOK = Path(__file__).resolve().parent.parent / 'reference' / 'Master_Inspection_Plan_Cleaned_Draft.xlsx'
+from synthetic_workbook import make_workbook
 
 class RoundTripTests(unittest.TestCase):
     def test_full_export_import_preserves_edited_data_and_source(self):
@@ -12,9 +12,10 @@ class RoundTripTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             store = Store(root / 'one.db')
-            p = preview_import(store, WORKBOOK)
+            workbook, asset_id = make_workbook(root)
+            p = preview_import(store, workbook)
             apply_import(store, p['token'])
-            a = store.get_asset('A03-0015')
+            a = store.get_asset(asset_id)
             a['name'] = 'Updated line'
             store.save_asset(a['id'], a, a['version'])
             export_workbook(store, root / 'export.xlsx')

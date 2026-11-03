@@ -1,3 +1,4 @@
+from contextlib import closing
 import unittest
 from inspection_app.validation import reconcile_import_reviews
 
@@ -99,7 +100,7 @@ class ReviewResolutionTests(unittest.TestCase):
             self.assertNotIn(saved['id'], report['eligible'])
             manifest = publish_snapshot(store, report['revision'], 'Review retained')
             self.assertNotIn(saved['id'], [asset['id'] for asset in manifest['assets']])
-            with sqlite3.connect(store.db_path) as conn:
+            with closing(sqlite3.connect(store.db_path)) as conn, conn:
                 self.assertEqual(conn.execute('select count(*) from field_verifications').fetchone()[0], 0)
 
     def test_independent_concern_survives_correction_of_generated_item(self):

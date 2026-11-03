@@ -1,3 +1,4 @@
+from contextlib import closing
 import json
 import sqlite3
 import tempfile
@@ -71,7 +72,7 @@ class YearOnlyBatchTests(unittest.TestCase):
         a=self.asset()
         self.apply(preview_year_only_dates(self.store))
         self.assertEqual(preview_year_only_dates(self.store)['date_count'],0)
-        with sqlite3.connect(self.store.db_path) as conn:
+        with closing(sqlite3.connect(self.store.db_path)) as conn, conn:
             self.assertEqual(conn.execute('SELECT count(*) FROM field_verifications').fetchone()[0],0)
             row=conn.execute("SELECT before_json,after_json,reason FROM correction_events WHERE origin='bulk'").fetchone()
             self.assertIsNotNone(row)
@@ -92,7 +93,7 @@ class YearOnlyBatchTests(unittest.TestCase):
         second=self.asset()
         preview=preview_year_only_dates(self.store)
         # Simulate an affected-row version mismatch without changing the global clock.
-        with sqlite3.connect(self.store.db_path) as conn:
+        with closing(sqlite3.connect(self.store.db_path)) as conn, conn:
             conn.execute('UPDATE assets SET version=version-1 WHERE id=?',(preview['changes'][-1]['asset_id'],))
         with self.assertRaisesRegex(ValueError,'Affected asset changed'):
             self.apply(preview)

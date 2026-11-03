@@ -86,6 +86,22 @@ class RecoveryTests(unittest.TestCase):
             self.assertEqual(archive.read_bytes(), b'damaged')
             self.assertEqual(store.get_asset(asset['id'])['name'], 'Before')
 
+    def test_disk_full_during_package_write_preserves_destination_and_database(self):
+        import errno
+        from unittest.mock import patch
+        from inspection_app.recovery import export_master_package
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp); store = Store(root / 'master.db')
+            asset = store.save_asset(None, {'name': 'Synthetic', 'family': 'Flowline'}, None)
+            destination = root / 'existing.zip'
+            destination.write_bytes(b'previous package')
+            with patch('inspection_app.recovery.ZipFile.write', side_effect=OSError(errno.ENOSPC, 'No space')):
+                with self.assertRaises(OSError):
+                    export_master_package(store, destination)
+            self.assertEqual(destination.read_bytes(), b'previous package')
+            self.assertEqual(store.get_asset(asset['id'])['name'], 'Synthetic')
+            self.assertEqual(list(root.glob('*.partial')), [])
+
     def test_safety_package_name_collision_preserves_existing_copy(self):
         from unittest.mock import patch
         from datetime import datetime

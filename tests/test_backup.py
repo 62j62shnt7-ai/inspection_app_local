@@ -12,7 +12,7 @@ class BackupTests(unittest.TestCase):
         from inspection_app.backups import list_backups, restore_saved_backup
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp)/'master.db'
-            with sqlite3.connect(path) as conn:
+            with closing(sqlite3.connect(path)) as conn, conn:
                 conn.execute('CREATE TABLE assets(id TEXT PRIMARY KEY,name TEXT NOT NULL,family TEXT NOT NULL,version INTEGER NOT NULL)')
                 conn.execute("INSERT INTO assets VALUES ('legacy','Original','Flowline',7)")
             store = Store(path)

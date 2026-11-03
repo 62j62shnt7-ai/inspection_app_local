@@ -1,9 +1,26 @@
 import subprocess
+import shutil
+from contextlib import contextmanager
+from unittest.mock import patch
 import sys
 import tempfile
 import unittest
 from pathlib import Path
 from zipfile import ZipFile
+
+@contextmanager
+def synthetic_reference(root):
+    from tools import package_windows
+    reference = root / 'synthetic-reference'
+    reference.mkdir()
+    (reference / 'synthetic.txt').write_text('Synthetic package fixture')
+    copytree = shutil.copytree
+    def copy_with_synthetic_reference(src, dst, *args, **kwargs):
+        if Path(src) == package_windows.ROOT / 'reference':
+            src = reference
+        return copytree(src, dst, *args, **kwargs)
+    with patch('tools.package_windows.shutil.copytree', side_effect=copy_with_synthetic_reference):
+        yield
 
 class PackageTests(unittest.TestCase):
     def test_rejects_incomplete_windows_runtime(self):
@@ -26,7 +43,9 @@ class PackageTests(unittest.TestCase):
             output=root/'output'
             (output/'data').mkdir(parents=True)
             (output/'data'/'inspection_plan.db').write_bytes(b'keep')
-            build(root/'runtime.zip',output)
+            with synthetic_reference(root):
+                build(root/'runtime.zip',output)
+            self.assertEqual((output/'reference'/'synthetic.txt').read_text(), 'Synthetic package fixture')
             self.assertEqual((output/'data'/'inspection_plan.db').read_bytes(), b'keep')
             self.assertIn('import site', (output/'runtime/windows/python314._pth').read_text())
             self.assertTrue((output/'runtime/windows/Lib/site-packages/openpyxl/__init__.py').exists())
@@ -51,7 +70,8 @@ class PackageTests(unittest.TestCase):
                 for name in ('python.exe', 'python311.dll', 'python311.zip', 'python311._pth'):
                     archive.writestr(name, b'fixture')
             output = root / 'Inspection app – تفتيش'
-            build(root / 'runtime.zip', output)
+            with synthetic_reference(root):
+                build(root / 'runtime.zip', output)
             runtime = output / 'runtime' / 'windows'
             paths = [(runtime / line).resolve() for line in (runtime / 'python311._pth').read_text(encoding='utf-8').splitlines()
                      if line and not line.startswith('import ')]

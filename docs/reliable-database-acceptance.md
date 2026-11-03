@@ -8,7 +8,7 @@ The [full review](app-review-2026-11-02.md) confirmed **one P1 and eight P2 find
 
 Fresh baseline: **232 Python and 83 Node tests passed, zero skipped**. Python application/tool syntax and all four browser-script syntax checks passed. The disposable 10,000-asset benchmark measured register page/filter at 0.153/0.161 seconds and quality first/warm at 0.344/0.339 seconds on macOS arm64 / Python 3.14.6; this does not establish native Windows performance.
 
-A live disposable browser checked dashboard/quality distinctions, year-only preview/apply/undo, saved snapshot inclusion/exclusion counts, compressed-backup listings and canceled reset preview. Existing tests missed the newly reproduced failures. Repair R1–R9 and pass their regressions before release consideration. Native platform, accessibility, owner and source-content gates below remain open; historical checkpoints do not supersede this assessment.
+A live disposable browser checked dashboard/quality distinctions, year-only preview/apply/undo, saved snapshot inclusion/exclusion counts, compressed-backup listings and canceled reset preview. The original review tests missed the reproduced failures; the subsequent repair regressions for R1–R9 now pass, subject to the release gates below. Native platform, accessibility, owner and source-content gates below remain open; historical checkpoints do not supersede this assessment.
 
 ## Implemented candidate
 
@@ -103,4 +103,4 @@ Recovery of a damaged canonical source archive first saves a separate protection
 
 Synthetic interchange checks cover deleted and consolidated source identities, retained unassigned reviews and repeated fresh imports. Owner workbook acceptance and native platform checks remain outstanding.
 
-A disposable post-reset browser exported a 2027 yearly workbook whose synthetic inspection row was inspected; HTTP checks rejected the old epoch. Full source suites passed 248 Python and 91 Node tests. This does not complete owner, native-platform, accessibility or interruption acceptance.
+A disposable post-reset browser exported a 2027 yearly workbook whose synthetic inspection row was inspected; HTTP checks rejected the old epoch. Full source suites passed 249 Python and 93 Node tests. This does not complete owner, native-platform, accessibility or interruption acceptance.

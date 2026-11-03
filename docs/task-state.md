@@ -4,7 +4,7 @@
 
 The requested commit-first full app review is in [app-review-2026-11-02.md](app-review-2026-11-02.md). Source/tests/docs were committed as **`b9ccfa1fff084226a71ec58fc4108eaf80a9fea7`** on `codex/reliable-master-database` before review. Three existing distribution ZIPs remain untracked and untouched; two contain the reference workbook. No operational data was used or modified for review.
 
-The [seven-task fix plan](superpowers/plans/2026-11-02-app-review-fixes.md) has been implemented for all nine review findings. Final independent branch review remains in progress.
+The [seven-task fix plan](superpowers/plans/2026-11-02-app-review-fixes.md) has been implemented for all nine review findings. The final independent branch review identified two additional issues, both fixed in `ff22275`.
 
 ## Current owner decisions
 
@@ -46,28 +46,28 @@ Preserve new uncommitted work and leave operational databases, source workbooks,
 
 ## Repair progress — Task 1 / R1
 
-Content-sensitive generated review ownership protects independently imported concerns. Synthetic regression covers export/reimport, rename, readiness, snapshot exclusion and absence of manual verification. Tasks 2–7 remain open.
+Content-sensitive generated review ownership protects independently imported concerns. Synthetic regression covers export/reimport, rename, readiness, snapshot exclusion and absence of manual verification.
 
 ## Repair progress — Task 2 / R4
 
-Pending cleanup now finishes before backup-folder changes; locked cleanup leaves the old setting in place and can be retried. Tasks 3–7 remain open.
+Pending cleanup now finishes before backup-folder changes; locked cleanup leaves the old setting in place and can be retried.
 
 ## Repair progress — Task 3 / R5–R6
 
-Synthetic corrupt-archive recovery and generated legacy backup restore are covered through storage and HTTP, including safety-package collision and failure paths. Tasks 4–7 remain open.
+Synthetic corrupt-archive recovery and generated legacy backup restore are covered through storage and HTTP, including safety-package collision and failure paths.
 
 ## Repair progress — Task 4 / R7–R8
 
-Deleted and consolidated source references and unassigned reviews survive synthetic workbook round trips. Tasks 5–7 remain open.
+Deleted and consolidated source references and unassigned reviews survive synthetic workbook round trips.
 
 ## Repair progress — Task 5 / R3
 
-Editor saves are guarded and bound to the initiating editor; synthetic delayed-response tests and disposable browser failure/double-click checks pass. Tasks 6–7 remain open.
+Editor saves are guarded and bound to the initiating editor; synthetic delayed-response tests and disposable browser failure/double-click checks pass.
 
 ## Repair progress — Task 6 / R2
 
-Bulk and consolidation previews reject stale responses and bind Apply to the reviewed scope and controls. Deferred-response tests and disposable browser preview/apply checks pass. Task 7 remains open.
+Bulk and consolidation previews reject stale responses and bind Apply to the reviewed scope and controls. Deferred-response tests and disposable browser preview/apply checks pass.
 
 ## Repair verification — 3 November 2026
 
-All seven repair tasks have code and synthetic regression coverage. Full suites: 248 Python and 91 Node tests passed without skips; Python emitted unclosed SQLite connection ResourceWarnings. All browser scripts passed syntax and 25 Python application/tool files parsed. Disposable browser checks covered save failure/double click, bulk and consolidation previews, reset and inspected yearly download, and recovery feedback. Final independent review remains in progress; owner, native Windows/macOS packaging, accessibility and extended interruption acceptance remain open.
+All seven repair tasks have code and synthetic regression coverage. Full suites: 249 Python and 93 Node tests passed without skips; Python emitted unclosed SQLite connection ResourceWarnings. All browser scripts passed syntax and 25 Python application/tool files parsed. Disposable browser checks covered save failure/double click, bulk and consolidation previews, reset and inspected yearly download, and recovery feedback. The independent review and its single fix pass are complete; owner, native Windows/macOS packaging, accessibility and extended interruption acceptance remain open.

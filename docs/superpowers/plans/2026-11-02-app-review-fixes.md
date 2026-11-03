@@ -125,8 +125,10 @@
 
 ## Completion criteria
 
-- [ ] R1–R9 each link a passing regression and verified fixing commit; code inspection alone does not close a finding.
-- [ ] Full `python3 -m unittest discover -s tests` and `node --test tests/*.test.cjs` pass; report environment skips honestly.
-- [ ] Relevant round trips/injected failures pass without operational inputs; original saved inputs remain unchanged.
-- [ ] Affected browser checks include download inspection, stale controls, duplicate submission and recovery feedback.
-- [ ] Native macOS/Windows, owner and accessibility acceptance are completed or remain explicit release gates. Commits do not imply merge/deployment.
+- [x] R1–R9 each link a passing regression and verified fixing commit; code inspection alone does not close a finding.
+- [x] Full `python3 -m unittest discover -s tests` and `node --test tests/*.test.cjs` pass; report environment skips honestly.
+- [x] Relevant round trips/injected failures pass without operational inputs; original saved inputs remain unchanged.
+- [x] Affected browser checks include download inspection, stale controls, duplicate submission and recovery feedback.
+- [x] Native macOS/Windows, owner and accessibility acceptance are completed or remain explicit release gates. Commits do not imply merge/deployment.
+
+Independent final review identified an editor-load ordering race and duplicate attached reviews without IDs; both were reproduced and fixed in `ff22275`, then full suites passed. Native and owner gates remain open as stated above.

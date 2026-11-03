@@ -2,7 +2,7 @@
 
 ## Assessment
 
-**Keep this build as a testing candidate.** The review confirmed **nine actionable findings: one P1 and eight P2s**. The P1 silently removes an independent inspection concern and incorrectly makes the asset snapshot-eligible. The P2s affect preview integrity, duplicate creation, cleanup restart, recovery compatibility and workbook interchange. The approved seven-task repair plan has since been implemented with the regressions noted below; final branch review remains in progress.
+**Keep this build as a testing candidate.** The review confirmed **nine actionable findings: one P1 and eight P2s**. The P1 silently removes an independent inspection concern and incorrectly makes the asset snapshot-eligible. The P2s affect preview integrity, duplicate creation, cleanup restart, recovery compatibility and workbook interchange. The approved seven-task repair plan has since been implemented with the regressions noted below; an independent branch review found two additional issues, fixed in `ff22275`.
 
 The requested pre-review commit is **`b9ccfa1fff084226a71ec58fc4108eaf80a9fea7`**, `Add data cleanup, compact backups, and review workflow updates`, on `codex/reliable-master-database`. It captured 41 source/test/documentation files, with 2,114 insertions and 72 deletions. Review covered the current application, prioritizing `18baa3c..b9ccfa1` rather than limiting inspection to that diff.
 
@@ -163,4 +163,20 @@ Before release, repair R1–R9 with failing-then-passing regressions, rerun full
 
 ## Repair verification — 3 November 2026
 
-Synthetic repair verification passed 248 Python tests and 91 Node tests, with no skips; Python emitted unclosed SQLite connection ResourceWarnings. All four browser scripts passed syntax checks and 25 application/tool Python files parsed. The disposable browser exercised draft retry and duplicate submission, bulk and consolidation previews/apply, reset, yearly Excel download and package restore feedback. Native Windows and packaged-app acceptance, owner decisions, full accessibility and extended interruption/disk-failure acceptance remain open.
+Synthetic repair verification passed 249 Python tests and 93 Node tests, with no skips; Python emitted unclosed SQLite connection ResourceWarnings. All four browser scripts passed syntax checks and 25 application/tool Python files parsed. The disposable browser exercised draft retry and duplicate submission, bulk and consolidation previews/apply, reset, yearly Excel download and package restore feedback. Native Windows and packaged-app acceptance, owner decisions, full accessibility and extended interruption/disk-failure acceptance remain open.
+
+### Repair traceability
+
+| Finding | Fix commit | Passing regression |
+| --- | --- | --- |
+| R1 | `e983f5f` | `test_independent_imported_concern_survives_unrelated_save` in [review resolution tests](../tests/test_review_resolution.py) |
+| R2 | `a877247` | Deferred bulk and consolidation cases in [quality browser tests](../tests/quality.test.cjs) |
+| R3 | `f1e04d2`, `8406aa6` | Duplicate, retry and editor-switch cases in [frontend tests](../tests/frontend.test.cjs) |
+| R4 | `037a854` | Pending cleanup and locked-folder cases in [cleanup tests](../tests/test_cleanup.py) |
+| R5 | `4efaa48` | Corrupt archive, rollback and safety-package collision cases in [recovery tests](../tests/test_recovery.py) |
+| R6 | `4efaa48` | Generated legacy backup cases in [backup tests](../tests/test_backup.py) and [HTTP tests](../tests/test_http_inprocess.py) |
+| R7 | `19935bc` | Deletion and consolidation cases in [round-trip tests](../tests/test_roundtrip.py) |
+| R8 | `19935bc` | `test_unassigned_review_items_survive_roundtrip` in [round-trip tests](../tests/test_roundtrip.py) |
+| R9 | `1f3373d` | Yearly export epoch cases in [frontend tests](../tests/frontend.test.cjs) and [HTTP tests](../tests/test_http_inprocess.py) |
+
+Independent review of `b7d0e61..1f3373d` identified two additional Important issues: out-of-order editor loads and duplicate exports for attached reviews without IDs. Both were reproduced before repair and fixed in `ff22275`; the complete Python and Node suites passed afterward. No second independent review was performed after that fix pass.

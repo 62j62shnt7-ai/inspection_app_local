@@ -71,3 +71,5 @@ Bulk and consolidation previews reject stale responses and bind Apply to the rev
 ## Repair verification — 3 November 2026
 
 All seven repair tasks have code and synthetic regression coverage. Full suites: 249 Python and 93 Node tests passed without skips; Python emitted unclosed SQLite connection ResourceWarnings. All browser scripts passed syntax and 25 Python application/tool files parsed. Disposable browser checks covered save failure/double click, bulk and consolidation previews, reset and inspected yearly download, and recovery feedback. The independent review and its single fix pass are complete; owner, native Windows/macOS packaging, accessibility and extended interruption acceptance remain open.
+
+**Verification data correction:** The full Python suite included existing import and round-trip cases that read the bundled reference workbook. Databases and outputs were disposable and the workbook was only read, but this did not meet the synthetic-only test-data constraint. New regressions and live-browser checks used synthetic data.

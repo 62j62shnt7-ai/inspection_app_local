@@ -104,3 +104,5 @@ Recovery of a damaged canonical source archive first saves a separate protection
 Synthetic interchange checks cover deleted and consolidated source identities, retained unassigned reviews and repeated fresh imports. Owner workbook acceptance and native platform checks remain outstanding.
 
 A disposable post-reset browser exported a 2027 yearly workbook whose synthetic inspection row was inspected; HTTP checks rejected the old epoch. Full source suites passed 249 Python and 93 Node tests. This does not complete owner, native-platform, accessibility or interruption acceptance.
+
+The full Python suite included existing import and round-trip cases reading the bundled reference workbook, despite the repair request's synthetic-only test-data constraint. Those cases used disposable databases and outputs; newly added regressions used synthetic data.

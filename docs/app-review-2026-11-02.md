@@ -180,3 +180,5 @@ Synthetic repair verification passed 249 Python tests and 93 Node tests, with no
 | R9 | `1f3373d` | Yearly export epoch cases in [frontend tests](../tests/frontend.test.cjs) and [HTTP tests](../tests/test_http_inprocess.py) |
 
 Independent review of `b7d0e61..1f3373d` identified two additional Important issues: out-of-order editor loads and duplicate exports for attached reviews without IDs. Both were reproduced before repair and fixed in `ff22275`; the complete Python and Node suites passed afterward. No second independent review was performed after that fix pass.
+
+**Verification data correction:** The full Python suite also ran existing `test_import.py` and `test_roundtrip.py` cases that read `reference/Master_Inspection_Plan_Cleaned_Draft.xlsx`. Their databases and outputs were disposable, and the workbook was read as an input, but running those cases did not comply with the requested synthetic-only test-data constraint. Newly added regressions and live-browser checks used synthetic data.

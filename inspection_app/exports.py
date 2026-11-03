@@ -13,7 +13,7 @@ HEADERS = {
  'Technical Details': 'asset_id field_id field_label value unit_explicit value_original source_sheet source_cell',
  'Notes & Actions': 'note_id asset_id note_type note_text source_sheet source_cell',
  'Review Items': 'review_id asset_id source_sheet source_row field original_value review_status reason',
- 'Source Cells': 'source_sheet source_row source_cell asset_id row_role original_value excel_type original_annotation',
+ 'Source Cells': 'source_sheet source_row source_cell asset_id row_role original_value excel_type original_annotation historical_asset_id',
  'Field Map': 'source_sheet source_column source_heading destination field_id preservation',
  'Import Decisions': 'row_key source_sheet source_row action asset_id',
 }
@@ -24,6 +24,7 @@ def export_workbook(store, path):
         rows = conn.execute('SELECT id,name,family,details FROM assets ORDER BY id').fetchall()
         has_ref = conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='import_reference'").fetchone()
         refs = dict(conn.execute('SELECT name,contents FROM import_reference')) if has_ref else {}
+        aliases = dict(conn.execute('SELECT retired_id,survivor_id FROM asset_aliases'))
     tables = {name: [] for name in TABLES}
     for asset_id, name, family, raw in rows:
         details = json.loads(raw)
@@ -33,8 +34,34 @@ def export_workbook(store, path):
                 item = {**item, 'asset_id': asset_id}
                 if identifier and not item.get(identifier): item[identifier] = str(uuid.uuid4())
                 tables[sheet].append(item)
-    source_rows=tables['Source Cells']+json.loads(refs.get('Source Cells','[]'))
-    tables['Source Cells']=list({json.dumps(row,sort_keys=True,default=str,ensure_ascii=False):row for row in source_rows}.values())
+    live_ids={row[0] for row in rows}
+    def normalize_reference(row):
+        row=dict(row)
+        original=row.get('asset_id')
+        if original and original not in live_ids:
+            if not row.get('historical_asset_id'):
+                row['historical_asset_id']=original
+            row['asset_id']=aliases.get(original) if aliases.get(original) in live_ids else None
+        return row
+    def unique_rows(sheet, values):
+        # Compare exported fields only; omitted optional values and None are equal.
+        columns=HEADERS[sheet].split()
+        unique={}
+        for value in values:
+            row={key:value.get(key) for key in columns}
+            unique[json.dumps(row,sort_keys=True,default=str,ensure_ascii=False)]=row
+        return list(unique.values())
+    source_rows=[normalize_reference(row) for row in tables['Source Cells']+json.loads(refs.get('Source Cells','[]'))]
+    tables['Source Cells']=unique_rows('Source Cells',source_rows)
+    attached={(row.get('asset_id'),row.get('review_id')) for row in tables['Review Items'] if row.get('review_id')}
+    for retained in json.loads(refs.get('Review Items','[]')):
+        retained=dict(retained)
+        original=retained.get('asset_id')
+        if original and original not in live_ids:
+            retained['asset_id']=aliases.get(original) if aliases.get(original) in live_ids else None
+        if (retained.get('asset_id'),retained.get('review_id')) not in attached:
+            tables['Review Items'].append(retained)
+    tables['Review Items']=unique_rows('Review Items',tables['Review Items'])
     tables['Field Map'] = json.loads(refs.get('Field Map', '[]'))
     if DECISION_SHEET in refs: tables[DECISION_SHEET] = json.loads(refs[DECISION_SHEET])
     book = Workbook(write_only=True)

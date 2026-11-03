@@ -21,6 +21,9 @@ def _merge_proposal(survivor,duplicate):
     for collection,identifier in COLLECTIONS.items():
         rows=merged.setdefault(collection,[])
         for incoming in duplicate.get(collection,[]):
+            incoming=dict(incoming)
+            if collection=='source_cells' and not incoming.get('historical_asset_id'):
+                incoming['historical_asset_id']=incoming.get('asset_id') or duplicate['id']
             incoming={**incoming,'asset_id':survivor['id']}
             prior=next((r for r in rows if identifier and r.get(identifier) and r.get(identifier)==incoming.get(identifier)),None)
             if prior is not None:
@@ -81,7 +84,10 @@ def apply_consolidation(store,preview_id,expected_revision,choices,evidence):
             for name,raw in conn.execute('SELECT name,contents FROM import_reference').fetchall():
                 rows=json.loads(raw)
                 for item in rows:
-                    if item.get('asset_id')==duplicate['id']:item['asset_id']=survivor['id']
+                    if item.get('asset_id')==duplicate['id']:
+                        if name=='Source Cells' and not item.get('historical_asset_id'):
+                            item['historical_asset_id']=duplicate['id']
+                        item['asset_id']=survivor['id']
                 conn.execute('UPDATE import_reference SET contents=? WHERE name=?',(json.dumps(rows,ensure_ascii=False),name))
         conn.execute('DELETE FROM consolidation_previews WHERE preview_id=?',(preview_id,))
     return {'survivor_id':survivor['id'],'retired_id':duplicate['id'],'revision':revision,'backup':backup['local_path']}

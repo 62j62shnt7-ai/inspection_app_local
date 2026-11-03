@@ -47,3 +47,5 @@ Cleanup protection alone can use an explicit incomplete-source fallback: recover
 Pending managed-file cleanup is completed before changing the independent backup folder. If a quarantined file remains locked, the folder change fails with a retryable error and the prior folder remains authoritative.
 
 Full package restore protects the current database and available source bytes in a separate recovery package before replacing damaged canonical archives. Supported four-column migration backups are normalized on a disposable copy and never modified in place.
+
+Workbook Source Cells may include the optional `historical_asset_id`: when a source identity was deleted, the live `asset_id` is blank; when consolidated, it points to the survivor and the historical ID retains its prior identity. Existing source annotations remain unchanged. Retained unassigned Review Items are included in exports. Older workbooks without this optional column remain supported.

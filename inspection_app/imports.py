@@ -37,6 +37,8 @@ def read_workbook(path):
                 if len(set(headings)) != len(headings):
                     raise ValueError('Duplicate headings in ' + name)
                 result[name] = [{heading: row[index] if index < len(row) else None for index, heading in enumerate(headings)} for row in rows if any(v is not None for v in row)]
+            for row in result['Source Cells']:
+                if row.get('historical_asset_id') is None: row.pop('historical_asset_id',None)
             for row in result['Inspection Plan']:
                 if row.get('condition_review_by') is None: row.pop('condition_review_by',None)
             if 'Long Values' in workbook.sheetnames:

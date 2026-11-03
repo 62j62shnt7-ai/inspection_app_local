@@ -82,6 +82,8 @@ Store supports the older assets table without `details` and creates a pre-migrat
 
 ### R7 · P2 — Selected deletion makes an exported workbook unimportable
 
+**Repair:** Export remaps retired IDs to live survivors and unassigns deleted IDs while retaining original IDs in optional Source Cells provenance. Synthetic deletion and consolidation round trips pass.
+
 **Location:** `inspection_app/exports.py:35–37`; selected deletion retains historical references at `inspection_app/cleanup.py:194`.
 
 Export merges retained Source Cells without checking whether referenced assets still exist. Selected deletion preserves evidence, leaving references to absent Assets rows.
@@ -91,6 +93,8 @@ Export merges retained Source Cells without checking whether referenced assets s
 **Repair:** resolve live aliases, export genuinely absent identities' evidence as unassigned rows, and retain text/coordinates/historical linkage using supported provenance rather than deleting evidence or recreating deleted assets. Test deletion → export → fresh import and consolidated references.
 
 ### R8 · P2 — Export drops unassigned Review Items
+
+**Repair:** Export merges retained review evidence with attached reviews and deduplicates exported rows. Repeated synthetic round trips retain unassigned multiline and formula-like values.
 
 **Location:** `inspection_app/exports.py:31–39`. This predates the latest diff.
 

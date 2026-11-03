@@ -76,13 +76,13 @@
 
 **Interfaces:** Preserve `export_workbook(store, path) -> path` and all existing linked-sheet columns. Append an optional `historical_asset_id` Source Cells column for the original ID when `asset_id` must be remapped; older workbooks without it remain supported. Do not emit deleted IDs as live foreign keys, recreate removed assets or alter original source/review content.
 
-- [ ] Add `test_selected_deletion_export_reimports_with_unassigned_evidence`: import two synthetic assets with source cells, delete one through cleanup, export/reimport into a fresh Store. Assert zero preview errors, only the survivor exists, `asset_id` is blank and `historical_asset_id` retains the removed ID. Compare every other source field exactly, including Excel type, row role, coordinates, original text and original annotation/comment/formula-cache content.
-- [ ] Add a retired/consolidated-ID case mapping `asset_id` to the survivor and retaining the retired ID in `historical_asset_id`, without recreating retired assets. Test repeated export/import preserves this optional field, and older workbooks without it still import.
-- [ ] Add `test_unassigned_review_items_survive_roundtrip`: compare exact review ID, status, original value, reason and coordinates across import/export/fresh import. Include multiline/formula-like text and repeated cycles without duplicate rows.
-- [ ] Run `python3 -m unittest discover -s tests -p 'test_roundtrip.py'`; confirm the reported reference/loss cases fail before implementation.
-- [ ] Build live-ID/alias lookup from the export snapshot, normalize absent/retired Source Cells references as above, and merge/deduplicate retained Review Items. Add the optional history column to export headers; retain it on import/export without overwriting any existing original_annotation. Keep literal-string/long-value behavior.
-- [ ] Run roundtrip, cleanup, consolidation, import and import-resolution suites individually; every generated output in the new cases must import into a fresh Store.
-- [ ] Update R7/R8, interchange caveats and acceptance docs, then commit.
+- [x] Add `test_selected_deletion_export_reimports_with_unassigned_evidence`: import two synthetic assets with source cells, delete one through cleanup, export/reimport into a fresh Store. Assert zero preview errors, only the survivor exists, `asset_id` is blank and `historical_asset_id` retains the removed ID. Compare every other source field exactly, including Excel type, row role, coordinates, original text and original annotation/comment/formula-cache content.
+- [x] Add a retired/consolidated-ID case mapping `asset_id` to the survivor and retaining the retired ID in `historical_asset_id`, without recreating retired assets. Test repeated export/import preserves this optional field, and older workbooks without it still import.
+- [x] Add `test_unassigned_review_items_survive_roundtrip`: compare exact review ID, status, original value, reason and coordinates across import/export/fresh import. Include multiline/formula-like text and repeated cycles without duplicate rows.
+- [x] Run `python3 -m unittest discover -s tests -p 'test_roundtrip.py'`; confirm the reported reference/loss cases fail before implementation.
+- [x] Build live-ID/alias lookup from the export snapshot, normalize absent/retired Source Cells references as above, and merge/deduplicate retained Review Items. Add the optional history column to export headers; retain it on import/export without overwriting any existing original_annotation. Keep literal-string/long-value behavior.
+- [x] Run roundtrip, cleanup, consolidation, import and import-resolution suites individually; every generated output in the new cases must import into a fresh Store.
+- [x] Update R7/R8, interchange caveats and acceptance docs, then commit.
 
 ## Task 5: Allow only one active editor save — R3
 

@@ -55,3 +55,7 @@ Pending cleanup now finishes before backup-folder changes; locked cleanup leaves
 ## Repair progress — Task 3 / R5–R6
 
 Synthetic corrupt-archive recovery and generated legacy backup restore are covered through storage and HTTP, including safety-package collision and failure paths. Tasks 4–7 remain open.
+
+## Repair progress — Task 4 / R7–R8
+
+Deleted and consolidated source references and unassigned reviews survive synthetic workbook round trips. Tasks 5–7 remain open.

@@ -132,3 +132,5 @@
 - [x] Native macOS/Windows, owner and accessibility acceptance are completed or remain explicit release gates. Commits do not imply merge/deployment.
 
 Independent final review identified an editor-load ordering race and duplicate attached reviews without IDs; both were reproduced and fixed in `ff22275`, then full suites passed. Native and owner gates remain open as stated above.
+
+Verification qualification: the full Python suite included existing tests that read the bundled reference workbook, contrary to the synthetic-only testing constraint; its databases and outputs were disposable. The new regression and live-browser cases used synthetic data.

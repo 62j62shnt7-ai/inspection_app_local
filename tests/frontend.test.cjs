@@ -381,3 +381,25 @@ test('yearly binary export sends the current reset epoch like other POST request
  assert.equal(calls[1].options.headers['X-App-Token'],calls[0].options.headers['X-App-Token']);
  assert.equal(calls[1].options.headers['X-Data-Epoch'],calls[0].options.headers['X-Data-Epoch']);
 });
+
+test('out-of-order editor opens cannot replace the newer editor',async()=>{
+ const nodes={'#save-asset':{},'#fields':{},'#draft-status':{textContent:''}},requests=[];
+ const ctx=vm.createContext({$:s=>nodes[s],editorDirty:false,editorDrafts:new Set(),editing:null,editorGeneration:0,editorSavePending:false,structuredClone,
+  api:(path,options)=>new Promise(resolve=>requests.push({path,resolve})),reviewPreviewPayload:value=>value});
+ const line=source.split('\n').find(row=>row.startsWith('async function openEditor('));assert.ok(line);vm.runInContext(line,ctx);
+ const first=ctx.openEditor('a'),second=ctx.openEditor('b');
+ requests[1].resolve({id:'b',name:'B',family:'Flowline'});await new Promise(setImmediate);
+ requests[0].resolve({id:'a',name:'A',family:'Flowline'});await new Promise(setImmediate);
+ assert.equal(ctx.editing.id,'b');
+});
+
+test('late review preview cannot mutate a newer editor',async()=>{
+ const nodes={'#save-asset':{},'#fields':{},'#draft-status':{textContent:''}},requests=[],applied=[];
+ const ctx=vm.createContext({$:s=>nodes[s],editorDirty:false,editorDrafts:new Set(),editing:null,editorGeneration:0,editorSavePending:false,structuredClone,
+  api:(path,options)=>new Promise(resolve=>requests.push({path,resolve})),reviewPreviewPayload:value=>value,applyReviewPreview:(asset,result)=>applied.push(asset.id)});
+ vm.runInContext(source.split('\n').find(row=>row.startsWith('async function openEditor(')),ctx);
+ const first=ctx.openEditor('a');first.catch(()=>{});requests[0].resolve({id:'a',name:'A',family:'Flowline'});await new Promise(setImmediate);
+ const second=ctx.openEditor('b');second.catch(()=>{});requests[2].resolve({id:'b',name:'B',family:'Flowline'});await new Promise(setImmediate);
+ requests[1].resolve({});await new Promise(setImmediate);
+ assert.deepEqual(applied,[]);assert.equal(ctx.editing.id,'b');
+});

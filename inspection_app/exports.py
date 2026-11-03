@@ -32,7 +32,7 @@ def export_workbook(store, path):
         for sheet, key, identifier in [('Inspection Plan','inspections','inspection_id'),('Technical Details','technical_details',None),('Notes & Actions','notes','note_id'),('Review Items','review_items','review_id'),('Source Cells','source_cells',None)]:
             for item in details.get(key, []):
                 item = {**item, 'asset_id': asset_id}
-                if identifier and not item.get(identifier): item[identifier] = str(uuid.uuid4())
+                if identifier and sheet!='Review Items' and not item.get(identifier): item[identifier] = str(uuid.uuid4())
                 tables[sheet].append(item)
     live_ids={row[0] for row in rows}
     def normalize_reference(row):
@@ -53,15 +53,27 @@ def export_workbook(store, path):
         return list(unique.values())
     source_rows=[normalize_reference(row) for row in tables['Source Cells']+json.loads(refs.get('Source Cells','[]'))]
     tables['Source Cells']=unique_rows('Source Cells',source_rows)
-    attached={(row.get('asset_id'),row.get('review_id')) for row in tables['Review Items'] if row.get('review_id')}
+    attached=list(tables['Review Items'])
+    review_fields=[field for field in HEADERS['Review Items'].split() if field!='review_id']
+    def review_evidence(row):
+        return json.dumps([row.get(field) for field in review_fields],default=str,ensure_ascii=False)
+    attached_ids={(row.get('asset_id'),row['review_id']) for row in attached if row.get('review_id')}
+    attached_evidence={review_evidence(row) for row in attached}
+    attached_without_id={review_evidence(row) for row in attached if not row.get('review_id')}
     for retained in json.loads(refs.get('Review Items','[]')):
         retained=dict(retained)
         original=retained.get('asset_id')
         if original and original not in live_ids:
             retained['asset_id']=aliases.get(original) if aliases.get(original) in live_ids else None
-        if (retained.get('asset_id'),retained.get('review_id')) not in attached:
+        review_id=retained.get('review_id')
+        same_id=review_id and (retained.get('asset_id'),review_id) in attached_ids
+        same_evidence=review_evidence(retained) in (attached_without_id if review_id else attached_evidence)
+        if not same_id and not same_evidence:
             tables['Review Items'].append(retained)
     tables['Review Items']=unique_rows('Review Items',tables['Review Items'])
+    for row in tables['Review Items']:
+        if row.get('asset_id') in live_ids and not row.get('review_id'):
+            row['review_id']=str(uuid.uuid4())
     tables['Field Map'] = json.loads(refs.get('Field Map', '[]'))
     if DECISION_SHEET in refs: tables[DECISION_SHEET] = json.loads(refs[DECISION_SHEET])
     book = Workbook(write_only=True)

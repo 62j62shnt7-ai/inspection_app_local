@@ -93,6 +93,21 @@ class RoundTripTests(unittest.TestCase):
                 with self.assertRaises(KeyError): target.get_asset(b['id'])
                 path=export_workbook(target,root/f'copy{i}.xlsx')
 
+    def test_attached_review_without_id_does_not_duplicate_across_cycles(self):
+        from openpyxl import load_workbook
+        from inspection_app.exports import export_workbook
+        from inspection_app.imports import read_workbook
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp); producer=Store(root/'producer.db')
+            asset=producer.save_asset(None,{'name':'Synthetic','family':'Flowline'},None)
+            path=export_workbook(producer,root/'input.xlsx')
+            book=load_workbook(path);book['Review Items'].append([None,asset['id'],'S',3,'scope','original','Review','Check scope']);book.save(path)
+            for i in range(3):
+                target=Store(root/f'target{i}.db'); staged=preview_import(target,path)
+                self.assertFalse(staged['errors']);apply_import(target,staged['token'])
+                path=export_workbook(target,root/f'output{i}.xlsx')
+                self.assertEqual(len(read_workbook(path)['Review Items']),1)
+
     def test_older_workbook_without_historical_asset_id_still_imports(self):
         from openpyxl import load_workbook
         from inspection_app.exports import export_workbook

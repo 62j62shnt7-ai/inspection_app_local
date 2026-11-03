@@ -38,6 +38,26 @@ class HttpInProcessTests(unittest.TestCase):
         status,body = self.request('POST','/api/assets',b'{"name":"Stale after restore","family":"Flowline"}',headers)
         self.assertEqual(status,400,body)
 
+    def test_yearly_export_after_reset_requires_current_epoch(self):
+        import io, re, openpyxl
+        self.store.save_asset(None, {'name':'Synthetic','family':'Flowline'}, None)
+        _, page = self.request('GET','/')
+        token = re.search(rb'name="app-token" content="([^"]+)"',page).group(1).decode()
+        headers={'X-App-Token':token,'X-Data-Epoch':'initial','Content-Type':'application/json'}
+        status, body = self.request('POST','/api/data/preview',b'{"category":"reset"}',headers)
+        self.assertEqual(status,200,body); preview=json.loads(body)
+        payload=json.dumps({'preview_id':preview['preview_id'],'confirmation':preview['confirmation']}).encode()
+        status, body = self.request('POST','/api/data/delete',payload,headers)
+        self.assertEqual(status,200,body); epoch=json.loads(body)['data_epoch']
+        data=json.dumps({'rows':[['2027-03','Synthetic','OSI','Manual']]}).encode()
+        self.assertEqual(self.request('POST','/api/yearly-export',data,headers)[0],400)
+        headers['X-Data-Epoch']=epoch
+        status, data=self.request('POST','/api/yearly-export',data,headers)
+        self.assertEqual(status,200)
+        book=openpyxl.load_workbook(io.BytesIO(data),data_only=False)
+        self.assertEqual([cell.value for cell in book.active[2]],['2027-03','Synthetic','OSI','Manual'])
+        book.close()
+
     def test_save_and_clear_with_windows_flush_requirement(self):
         import re
         from windows_io import windows_flush_requirement

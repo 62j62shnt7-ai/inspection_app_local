@@ -4,7 +4,7 @@
 
 Source checkpoint `b9ccfa1` passed 232 Python and 83 Node tests on macOS, including current compatibility simulations. **Native Windows execution remains unverified.** Existing distribution ZIPs were not rebuilt or certified; source results do not establish their contents/runtime behavior.
 
-The [full review](app-review-2026-11-02.md) found nine open defects. R4 reproduces startup-blocking cleanup after deferred deletion and a backup-folder change; R5/R6 affect archive/legacy-backup recovery; R9 breaks yearly export after reset. R4 used an injected macOS file-lock failure, not native Windows locking. Follow the [repair plan](superpowers/plans/2026-11-02-app-review-fixes.md), then repeat packaged launch/save/clear/reset/export/recovery on Windows. Earlier counts below are historical.
+The [full review](app-review-2026-11-02.md) found nine defects; the approved source repair plan has since been implemented with synthetic regression coverage. R4 reproduces startup-blocking cleanup after deferred deletion and a backup-folder change; R5/R6 affect archive/legacy-backup recovery; R9 breaks yearly export after reset. R4 used an injected macOS file-lock failure, not native Windows locking. Repeat packaged launch/save/clear/reset/export/recovery on Windows; the source repair results do not establish native Windows behavior. Earlier counts below are historical.
 
 Reviewed startup and isolated Python imports, HTML/text encoding, browser APIs and CSS, Unicode/space-containing paths, SQLite connections and restore URIs, workbook upload/validation/export, temporary-file cleanup, data-directory locks, and portable packaging.
 

@@ -102,3 +102,5 @@ Data quality now offers a year-grouped preview for last and next inspection fiel
 Recovery of a damaged canonical source archive first saves a separate protection package containing the pre-restore database and available damaged evidence, then installs verified package bytes. The supported four-column migration backup is normalized on a disposable copy; saved backup inputs are not rewritten. Synthetic rollback and saved-backup HTTP checks pass; native interruption and Windows acceptance remain outstanding.
 
 Synthetic interchange checks cover deleted and consolidated source identities, retained unassigned reviews and repeated fresh imports. Owner workbook acceptance and native platform checks remain outstanding.
+
+A disposable post-reset browser exported a 2027 yearly workbook whose synthetic inspection row was inspected; HTTP checks rejected the old epoch. Full source suites passed 248 Python and 91 Node tests. This does not complete owner, native-platform, accessibility or interruption acceptance.

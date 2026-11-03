@@ -4,7 +4,7 @@
 
 The requested commit-first full app review is in [app-review-2026-11-02.md](app-review-2026-11-02.md). Source/tests/docs were committed as **`b9ccfa1fff084226a71ec58fc4108eaf80a9fea7`** on `codex/reliable-master-database` before review. Three existing distribution ZIPs remain untracked and untouched; two contain the reference workbook. No operational data was used or modified for review.
 
-Outcome: **one P1 and eight P2 findings remain open**. The [seven-task fix plan](superpowers/plans/2026-11-02-app-review-fixes.md) defines regression coverage and repair order. Review/report/documentation work is complete; application fixes have not been implemented. The current request was to review and plan repairs.
+The [seven-task fix plan](superpowers/plans/2026-11-02-app-review-fixes.md) has been implemented for all nine review findings. Final independent branch review remains in progress.
 
 ## Current owner decisions
 
@@ -24,7 +24,7 @@ Older mandatory-verification/location requirements and the instruction never to 
 
 The checkpoint includes import/identity resolution, preserved source archives/evidence, reconciliation, quality/readiness, optional verification, snapshots, bulk corrections/consolidation, backup/recovery, compact compressed backups, year-only corrections, reviewed deletion/reset, reset epochs, folder picking, month inputs and theme/usability work. Details remain in [reliable-database-acceptance.md](reliable-database-acceptance.md). Implemented does not mean accepted or defect-free.
 
-## Latest verification
+## Original review verification (historical)
 
 - Full Python suite: **232 passed**, zero skipped, including the listening-socket test.
 - Full Node suite: **83 passed**, zero skipped. All four browser scripts passed syntax; 25 Python application/tool files parsed successfully.
@@ -32,7 +32,7 @@ The checkpoint includes import/identity resolution, preserved source archives/ev
 - Live synthetic browser: dashboard/quality classification, year-only preview/apply/undo, saved snapshot with two included/two excluded, backup/inventory listing and canceled reset preview.
 - Targeted synthetic lifecycle reproductions confirmed nine findings despite the passing baseline. No application regression tests have been added yet; evidence/limits are in the report.
 
-## Next work
+## Original repair sequence (historical)
 
 1. R1: prevent unrelated saves from clearing newly imported independent concerns or changing snapshot eligibility.
 2. R4–R8: repair cleanup destination changes, corrupt-source/legacy-backup recovery and evidence-preserving interchange.
@@ -67,3 +67,7 @@ Editor saves are guarded and bound to the initiating editor; synthetic delayed-r
 ## Repair progress — Task 6 / R2
 
 Bulk and consolidation previews reject stale responses and bind Apply to the reviewed scope and controls. Deferred-response tests and disposable browser preview/apply checks pass. Task 7 remains open.
+
+## Repair verification — 3 November 2026
+
+All seven repair tasks have code and synthetic regression coverage. Full suites: 248 Python and 91 Node tests passed without skips; Python emitted unclosed SQLite connection ResourceWarnings. All browser scripts passed syntax and 25 Python application/tool files parsed. Disposable browser checks covered save failure/double click, bulk and consolidation previews, reset and inspected yearly download, and recovery feedback. Final independent review remains in progress; owner, native Windows/macOS packaging, accessibility and extended interruption acceptance remain open.

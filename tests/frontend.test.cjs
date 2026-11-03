@@ -368,3 +368,16 @@ test('successful save reports success even before the dialog close event runs',a
  const h=editorSaveHarness(),pending=h.nodes['#form'].onsubmit({preventDefault(){}});
  h.resolve();await pending;assert.match(h.ctx.notice,/Asset saved/);
 });
+
+test('yearly binary export sends the current reset epoch like other POST requests',async()=>{
+ const calls=[],nodes={'#year-xlsx':{},'#year':{value:'2027'},'#year-sheet':{value:''},'#year-type':{value:''},'#year-carry':{checked:false}};
+ const ctx=vm.createContext({$:s=>nodes[s],token:'test-token',dataEpoch:'rotated-epoch',assets:[],yearlyRows:()=>[],yearlyExportContext:()=>({scope:'all'}),
+  fetch:async(path,options)=>{calls.push({path,options});return {ok:true,json:async()=>({}),blob:async()=>({})}},
+  URL:{createObjectURL:()=> 'blob:test',revokeObjectURL(){}},el:()=>({click(){}}),setTimeout:()=>{},message(text){throw Error(text)}});
+ vm.runInContext(getFunction('requestHeaders'),ctx);
+ const apiLine=source.split('\n').find(line=>line.startsWith('async function api('));vm.runInContext(apiLine,ctx);
+ const handler=source.split('\n').find(line=>line.startsWith("$('#year-xlsx').onclick="));assert.ok(handler);vm.runInContext(handler,ctx);
+ await ctx.api('/api/example',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});await nodes['#year-xlsx'].onclick();
+ assert.equal(calls[1].options.headers['X-App-Token'],calls[0].options.headers['X-App-Token']);
+ assert.equal(calls[1].options.headers['X-Data-Epoch'],calls[0].options.headers['X-Data-Epoch']);
+});

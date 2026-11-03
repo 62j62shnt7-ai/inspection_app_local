@@ -2,11 +2,11 @@
 
 ## Assessment
 
-**Keep this build as a testing candidate.** The review confirmed **nine actionable findings: one P1 and eight P2s**. The P1 silently removes an independent inspection concern and incorrectly makes the asset snapshot-eligible. The P2s affect preview integrity, duplicate creation, cleanup restart, recovery compatibility and workbook interchange. All remain open; this review changes documentation only.
+**Keep this build as a testing candidate.** The review confirmed **nine actionable findings: one P1 and eight P2s**. The P1 silently removes an independent inspection concern and incorrectly makes the asset snapshot-eligible. The P2s affect preview integrity, duplicate creation, cleanup restart, recovery compatibility and workbook interchange. The approved seven-task repair plan has since been implemented with the regressions noted below; final branch review remains in progress.
 
 The requested pre-review commit is **`b9ccfa1fff084226a71ec58fc4108eaf80a9fea7`**, `Add data cleanup, compact backups, and review workflow updates`, on `codex/reliable-master-database`. It captured 41 source/test/documentation files, with 2,114 insertions and 72 deletions. Review covered the current application, prioritizing `18baa3c..b9ccfa1` rather than limiting inspection to that diff.
 
-Three existing untracked distribution ZIPs were left untouched and uncommitted; two contain the reference workbook. Neither those packages nor operational databases, workbooks, backups or recovery copies were used for testing. No application fix, operational migration, merge, push or deployment was performed.
+Three existing untracked distribution ZIPs were left untouched and uncommitted; two contain the reference workbook. Neither those packages nor operational databases, workbooks, backups or recovery copies were used for testing. The original review performed no application fix, operational migration, merge, push or deployment. The subsequent repairs used disposable synthetic data.
 
 See the [seven-task fix plan](superpowers/plans/2026-11-02-app-review-fixes.md). P1 means high priority before relying on this candidate; P2 means a material defect to repair before release. Priorities describe software behavior, not engineering or regulatory conclusions.
 
@@ -110,6 +110,8 @@ Import accepts unassigned reviews and retains them in `import_reference`. Export
 
 ### R9 · P2 — Yearly Excel export fails after working-data reset
 
+**Repair:** The binary export shares the JSON API token/epoch header builder. A frontend request regression, reset/current-versus-stale epoch HTTP test and disposable browser download with workbook inspection pass.
+
 **Location:** `static/app.js:222`; epoch enforcement at `inspection_app/server.py:144–146`.
 
 The yearly export's raw POST fetch includes the token but omits `X-Data-Epoch`. Reset rotates the epoch; even freshly reloaded pages still omit it. Reload cannot fix the error.
@@ -158,3 +160,7 @@ On macOS arm64 / Python 3.14.6, the existing disposable benchmark measured regis
 README, task state, data-contract caveats, acceptance status, earlier review follow-up and Windows status now link this review. Historical verification remains labeled as historical. Task state no longer requires mandatory verification/location or indefinite preservation of an uncommitted tree; current owner rules and the explicit commit-first request supersede those statements.
 
 Before release, repair R1–R9 with failing-then-passing regressions, rerun full suites and relevant round trips/failure paths, then repeat affected disposable browser flows. Native Windows launch/file-lock/picker behavior, packaged macOS launch, actual download/printing acceptance, full keyboard/screen-reader/contrast/zoom acceptance, power-loss/disk-full behavior and owner source/identity/engineering acceptance remain unverified by this review. Existing ambiguous workbook rows still require owner decisions. No absence-of-defects or safety certification is claimed.
+
+## Repair verification — 3 November 2026
+
+Synthetic repair verification passed 248 Python tests and 91 Node tests, with no skips; Python emitted unclosed SQLite connection ResourceWarnings. All four browser scripts passed syntax checks and 25 application/tool Python files parsed. The disposable browser exercised draft retry and duplicate submission, bulk and consolidation previews/apply, reset, yearly Excel download and package restore feedback. Native Windows and packaged-app acceptance, owner decisions, full accessibility and extended interruption/disk-failure acceptance remain open.

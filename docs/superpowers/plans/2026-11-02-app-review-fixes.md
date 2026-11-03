@@ -116,12 +116,12 @@
 
 **Interfaces:** Preserve yearly XLSX payload/response format and token/epoch semantics. Share header construction with `api(path, options)` without parsing successful binary output as JSON.
 
-- [ ] Add a frontend test capturing yearly fetch after loading a rotated epoch; assert token/epoch match other POSTs.
-- [ ] Add reset→current epoch→yearly HTTP export returning 200 XLSX, with old-epoch requests still rejected.
-- [ ] Run frontend/in-process HTTP suites; confirm the actual frontend-header test fails first. A correctly headed backend-only request already passes and cannot prove this fix alone.
-- [ ] Use the shared request-header builder for binary export; audit other raw POST callers for the omission.
-- [ ] Run full Python/Node suites and all application/tool syntax checks. In a disposable browser, reset/reload/export, inspect the downloaded workbook and verify stale writes remain rejected.
-- [ ] Update R9, main report, README, task state, contract, acceptance and Windows status with actual results. Keep untested gates open. Commit the repair and final evidence.
+- [x] Add a frontend test capturing yearly fetch after loading a rotated epoch; assert token/epoch match other POSTs.
+- [x] Add reset→current epoch→yearly HTTP export returning 200 XLSX, with old-epoch requests still rejected.
+- [x] Run frontend/in-process HTTP suites; confirm the actual frontend-header test fails first. A correctly headed backend-only request already passes and cannot prove this fix alone.
+- [x] Use the shared request-header builder for binary export; audit other raw POST callers for the omission.
+- [x] Run full Python/Node suites and all application/tool syntax checks. In a disposable browser, reset/reload/export, inspect the downloaded workbook and verify stale writes remain rejected.
+- [x] Update R9, main report, README, task state, contract, acceptance and Windows status with actual results. Keep untested gates open. Commit the repair and final evidence.
 
 ## Completion criteria
 

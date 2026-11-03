@@ -76,3 +76,5 @@ The automated tests exercise workbook import, reconciliation, edits, export/re-i
 Choose the independent backup destination with **Browse…** in Data management → Automatic backup copies. The native Windows/macOS folder chooser saves the selected folder; cancelling keeps the previous destination.
 
 In **Data quality → Year-only inspection dates → Review year-only dates**, preview adding January to retained four-digit years for both last and next inspection dates. Review the year groups and remaining issues, then apply with a recorded reason. Existing months, blanks and other ambiguous values stay unchanged. **Revert last bulk correction** can undo it if those records have not subsequently changed.
+
+The November 2026 review repairs have synthetic regression and disposable browser coverage, including reset followed by yearly Excel export. Native Windows, packaged macOS, owner workflow and full accessibility acceptance remain outstanding; see [the review](docs/app-review-2026-11-02.md).

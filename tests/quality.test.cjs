@@ -9,7 +9,7 @@ test('verification selection includes only explicitly checked field names',()=>{
 
 test('quality issues label warning and blocking severity with actionable rows',()=>{
  const nodes={};function node(tag='div',text=''){return {tagName:tag,textContent:text,children:[],className:'',style:{},append(...items){this.children.push(...items)},replaceChildren(...items){this.children=items},setAttribute(){}}}
- let openedAsset;const ctx=vm.createContext({assets:[{id:"a",name:"Vessel 101"}],assetDisplayName:a=>a.name,qualityState:{page:1,pages:1,filtered_issue_count:2,quality:{issues:[{severity:'blocking',asset_id:'a',field:'name',message:'Missing description',rule_id:'required'},{severity:'warning',asset_id:'b',field:'name',message:'Check source',rule_id:'source-review'}],issue_count:2,affected_assets:2,revision:1},readiness:{eligible_count:0,excluded_count:2,excluded:[]}},$:selector=>nodes[selector]??=node(),el:(tag,text,cls)=>{const n=node(tag,text??'');n.className=cls||'';return n},verificationLabel:value=>value,openEditor(id){openedAsset=id},openIssueReview(){},markFieldState(){}});
+ let openedAsset;const ctx=vm.createContext({assets:[{id:"a",name:"Vessel 101"}],assetDisplayName:a=>a.name,qualityState:{page:1,pages:1,filtered_issue_count:2,quality:{issues:[{severity:'blocking',asset_id:'a',field:'name',message:'Missing description',rule_id:'required'},{severity:'warning',asset_id:'b',field:'name',message:'Check source',rule_id:'source-review'}],issue_count:2,affected_assets:2,revision:1},readiness:{eligible_count:0,excluded_count:2,excluded:[]}},$:selector=>nodes[selector]??=node(),el:(tag,text,cls)=>{const n=node(tag,text??'');n.className=cls||'';return n},verificationLabel:value=>value,openEditor(id){openedAsset=id},openIssueReview(){},markFieldState(){},renderDateReviewPanels(){}});
  let start=source.indexOf('function renderQuality('),depth=0,opened=false,end=-1;for(let i=source.indexOf('{',start);i<source.length;i++){if(source[i]==='{'){depth++;opened=true}if(source[i]==='}'){depth--;if(opened&&depth===0){end=i+1;break}}}vm.runInContext(source.slice(start,end),ctx);ctx.renderQuality();
  const all=n=>[n,...n.children.flatMap(all)],rows=all(nodes['#quality-rows']).filter(n=>n.tagName==='tr');assert.equal(rows.length,2);const badges=all(nodes['#quality-rows']).filter(n=>n.className.startsWith('quality-severity-badge'));
  assert.match(nodes['#quality-summary'].textContent,/passed checks/i);assert.doesNotMatch(nodes['#quality-summary'].textContent,/verified and eligible/i);assert.equal(rows[0].children[1].textContent,'Vessel 101');assert.equal(rows[1].children[1].textContent,'b');rows[0].children[4].children[0].onclick();assert.equal(openedAsset,'a');assert.deepEqual(badges.map(n=>n.textContent),['Blocking issue','Warning']);assert.ok(badges[0].className.includes('blocking'));assert.ok(badges[1].className.includes('warning'));
@@ -149,4 +149,33 @@ test('consolidation ignores obsolete survivor and dialog preview responses',asyn
  assert.match(n['#consolidate-conflicts'].children[0].textContent,/Keep b; retire a/);
  n['#consolidate-evidence'].value='Same';const apply=n['#consolidate-apply'].click();assert.equal(h.requests.at(-1).body.preview_id,'new');h.requests.at(-1).resolve({survivor_id:'b'});await apply;
  h.ctx.selectedAssets=new Set(['a','b']);n['#consolidate-open'].click();const closing=n['#consolidate-preview'].click();n['#consolidate-close'].click();h.ctx.selectedAssets=new Set(['b','c']);n['#consolidate-open'].click();h.requests.at(-1).resolve({preview_id:'closed',revision:1,survivor:{id:'a'},duplicate:{id:'b'},conflicts:[]});await closing;assert.equal(n['#consolidate-apply'].disabled,true);
+});
+
+test('century candidates start unchecked and selection invalidates an earlier preview',()=>{
+ const nodes={};function node(tag,text=''){return {tag,textContent:text,children:[],disabled:false,append(...items){this.children.push(...items)},replaceChildren(...items){this.children=items}}}
+ const ctx=vm.createContext({$:s=>nodes[s]??=node('div'),el:node,verificationLabel:v=>v});vm.runInContext(source,ctx);
+ ctx.document={createTextNode:text=>node('text',text)};
+ ctx.renderCenturyCandidates({candidates:[{key:'a',name:'Line',asset_id:'a',inspection_type:'OSI',field:'last_inspection_month',before:'1935-08',after:'2035-08',original:'1935-08-01',source_sheet:'FLs',source_cell:'I4'}]});
+ const checkbox=nodes['#century-candidates'].children[1].children[0];assert.equal(checkbox.checked,false);
+ nodes['#century-apply']=node('button');nodes['#century-apply'].disabled=false;
+ checkbox.checked=true;checkbox.onchange();assert.equal(nodes['#century-apply'].disabled,true);assert.equal(nodes['#century-preview-button'].disabled,false);
+ checkbox.checked=false;checkbox.onchange();assert.equal(nodes['#century-preview-button'].disabled,true);
+});
+
+test('century select all toggles candidate dates and invalidates the preview',()=>{
+ const nodes={};function node(tag,text=''){return {tag,textContent:text,children:[],disabled:false,append(...items){this.children.push(...items)},replaceChildren(...items){this.children=items}}}
+ const ctx=vm.createContext({$:s=>nodes[s]??=node('div'),el:node,verificationLabel:v=>v});vm.runInContext(source,ctx);ctx.document={createTextNode:text=>node('text',text)};
+ ctx.renderCenturyCandidates({candidates:['a','b'].map(key=>({key,name:key,asset_id:key,inspection_type:'OSI',field:'next_inspection_month',before:'1935-08',after:'2035-08'}))});
+ const boxes=nodes['#century-candidates'].children.slice(1).map(label=>label.children[0]);
+ nodes['#century-apply']=node('button');nodes['#century-select-all']=node('input');nodes['#century-apply'].disabled=false;nodes['#century-select-all'].checked=true;ctx.toggleAllCenturyDates();
+ assert.ok(boxes.every(box=>box.checked));assert.equal(nodes['#century-apply'].disabled,true);assert.equal(nodes['#century-preview-button'].disabled,false);
+ nodes['#century-select-all'].checked=false;ctx.toggleAllCenturyDates();assert.ok(boxes.every(box=>!box.checked));assert.equal(nodes['#century-preview-button'].disabled,true);
+});
+
+test('date review panels follow available candidate counts and update when cleared',()=>{
+ const nodes={};const ctx=vm.createContext({$:s=>nodes[s]??={hidden:true}});vm.runInContext(source,ctx);
+ ctx.renderDateReviewPanels({century:1,month_year:0,year_only:2});
+ assert.equal(nodes['#century-panel'].hidden,false);assert.equal(nodes['#month-year-panel'].hidden,true);assert.equal(nodes['#year-only-panel'].hidden,false);
+ ctx.renderDateReviewPanels({century:0,month_year:1,year_only:0});
+ assert.equal(nodes['#century-panel'].hidden,true);assert.equal(nodes['#month-year-panel'].hidden,false);assert.equal(nodes['#year-only-panel'].hidden,true);
 });

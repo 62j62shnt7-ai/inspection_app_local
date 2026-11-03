@@ -36,7 +36,7 @@ def parse_month(value):
         except ValueError:
             return None
     # Month names and month/year are unambiguous; two-digit years are not inferred.
-    match = re.fullmatch(r'(\d{1,2})/(\d{4})', text)
+    match = re.fullmatch(r'(\d{1,2})[-/](\d{4})', text)
     if match:
         return parse_month(f'{match[2]}-{match[1]}')
     for fmt in ('%b-%Y', '%B-%Y', '%b %Y', '%B %Y', '%B -%Y'):

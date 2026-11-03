@@ -409,6 +409,28 @@ def preview_bulk_correction(store, asset_ids, operation):
 @serialized
 def preview_year_only_dates(store):
     """Preview the owner's January convention; never infer years or replace months."""
+    return _preview_source_dates(store, 'year_only_january')
+
+
+@serialized
+def preview_month_year_dates(store):
+    """Preview unambiguous month-year source dates without replacing current months."""
+    return _preview_source_dates(store, 'month_year')
+
+
+def _source_date_month(inspection, field, original, mode):
+    from .months import parse_month
+    if inspection.get(field) not in (None, ''):
+        return None
+    text=str(inspection.get(original) or '').strip()
+    if mode == 'year_only_january':
+        return text+'-01' if re.fullmatch(r'[0-9]{4}',text) and text!='0000' else None
+    if not re.fullmatch(r'[0-9]{1,2}-[0-9]{4}',text):
+        return None
+    return parse_month(text)
+
+
+def _preview_source_dates(store, mode):
     from .validation import reconcile_import_reviews
     with closing(sqlite3.connect(store.db_path)) as conn, conn:
         revision=conn.execute('SELECT value FROM version_clock WHERE id=1').fetchone()[0]
@@ -426,12 +448,13 @@ def preview_year_only_dates(store):
                     continue
                 for field,original in (('last_inspection_month','last_original'),('next_inspection_month','next_original')):
                     raw=inspection.get(original)
-                    year=str(raw or '').strip()
-                    if inspection.get(field) not in (None,'') or not re.fullmatch(r'[0-9]{4}',year) or year=='0000':
+                    month=_source_date_month(inspection,field,original,mode)
+                    if not month:
                         continue
-                    inspection[field]=year+'-01'
+                    year=month[:4]
+                    inspection[field]=month
                     updates.append({'inspection_type':inspection['inspection_type'],'field':field,
-                                    'original':raw,'before':None,'after':year+'-01','year':year})
+                                    'original':raw,'before':None,'after':month,'year':year})
                     groups[year]=groups.get(year,0)+1
             if not updates:
                 continue
@@ -443,10 +466,113 @@ def preview_year_only_dates(store):
         result={'preview_id':str(uuid.uuid4()),'revision':revision,'changes':changes,
                 'selected_count':len(changes),'date_count':sum(len(c['date_changes']) for c in changes),
                 'groups':[{'year':year,'date_count':groups[year]} for year in sorted(groups)],
-                'operation':{'operation':'year_only_january','scope':'all_active_applicable_inspections'}}
+                'operation':{'operation':mode,'scope':'all_active_applicable_inspections'}}
         conn.execute('INSERT INTO bulk_operations(operation_id,state,contents) VALUES (?,?,?)',
                      (result['preview_id'],'preview',json.dumps(result,ensure_ascii=False)))
     return result
+
+
+def _century_candidates(assets):
+    candidates=[]
+    for asset in assets:
+        if asset.get('record_status')=='Archived':
+            continue
+        for index,inspection in enumerate(asset.get('inspections',[])):
+            if inspection.get('applicable')!='Yes':
+                continue
+            for field,original,cell in (('last_inspection_month','last_original','last_source_cell'),('next_inspection_month','next_original','next_source_cell')):
+                month=inspection.get(field)
+                if not isinstance(month,str) or not re.fullmatch(r'19[0-9]{2}-(0[1-9]|1[0-2])',month):
+                    continue
+                candidates.append({'key':fingerprint([asset['id'],index,field]),'asset_id':asset['id'],
+                    'name':asset['name'],'inspection_index':index,'inspection_type':inspection.get('inspection_type'),
+                    'field':field,'before':month,'after':'20'+month[2:],'original':inspection.get(original),
+                    'source_sheet':inspection.get('source_sheet') or asset.get('source_sheet'),
+                    'source_cell':inspection.get(cell)})
+    return candidates
+
+
+def _named_year_candidates(assets):
+    names=('january','february','march','april','may','june','july','august','september','october','november','december')
+    months={name:index for index,name in enumerate(names,1)}
+    months.update({name[:3]:index for index,name in enumerate(names,1)})
+    candidates=[]
+    for asset in assets:
+        if asset.get('record_status')=='Archived':continue
+        for index,inspection in enumerate(asset.get('inspections',[])):
+            if inspection.get('applicable')!='Yes':continue
+            for field,original,cell in (('last_inspection_month','last_original','last_source_cell'),('next_inspection_month','next_original','next_source_cell')):
+                if inspection.get(field) not in (None,''):continue
+                raw=inspection.get(original)
+                match=re.fullmatch(r'([A-Za-z]+)\s*-\s*([0-9]{2})',str(raw or '').strip())
+                if not match or match[1].lower() not in months:continue
+                month=months[match[1].lower()]
+                candidates.append({'key':fingerprint([asset['id'],index,field,'named_year']),'asset_id':asset['id'],
+                    'name':asset['name'],'inspection_index':index,'inspection_type':inspection.get('inspection_type'),
+                    'field':field,'before':inspection.get(field),'after':f'20{match[2]}-{month:02d}','original':raw,
+                    'source_sheet':inspection.get('source_sheet') or asset.get('source_sheet'),'source_cell':inspection.get(cell)})
+    return candidates
+
+
+@serialized
+def named_year_candidates(store):
+    with closing(sqlite3.connect(store.db_path)) as conn:
+        revision=conn.execute('SELECT value FROM version_clock WHERE id=1').fetchone()[0]
+        return {'revision':revision,'candidates':_named_year_candidates(read_assets(conn))}
+
+
+@serialized
+def preview_named_year_dates(store,expected_revision,selected_keys):
+    return _preview_selected_dates(store,expected_revision,selected_keys,'named_year')
+
+
+@serialized
+def century_date_candidates(store):
+    with closing(sqlite3.connect(store.db_path)) as conn:
+        revision=conn.execute('SELECT value FROM version_clock WHERE id=1').fetchone()[0]
+        return {'revision':revision,'candidates':_century_candidates(read_assets(conn))}
+
+
+@serialized
+def preview_century_dates(store, expected_revision, selected_keys):
+    return _preview_selected_dates(store,expected_revision,selected_keys,'century')
+
+
+def _preview_selected_dates(store, expected_revision, selected_keys, mode):
+    from .validation import reconcile_import_reviews
+    if not isinstance(selected_keys,list) or not selected_keys or len(selected_keys)>10000 or any(not isinstance(k,str) for k in selected_keys) or len(set(selected_keys))!=len(selected_keys):
+        raise ValueError('Select distinct inspection dates')
+    with closing(sqlite3.connect(store.db_path)) as conn, conn:
+        revision=conn.execute('SELECT value FROM version_clock WHERE id=1').fetchone()[0]
+        if revision!=expected_revision:
+            raise ValueError('Master changed. Review the dates again.')
+        assets=read_assets(conn)
+        candidates={c['key']:c for c in (_century_candidates(assets) if mode=='century' else _named_year_candidates(assets))}
+        if any(key not in candidates for key in selected_keys):
+            raise ValueError('Selected date is no longer available')
+        by_asset={}
+        for key in selected_keys:
+            candidate=candidates[key]
+            by_asset.setdefault(candidate['asset_id'],[]).append(candidate)
+        changes=[]
+        for asset in assets:
+            dates=by_asset.get(asset['id'],[])
+            if not dates:
+                continue
+            before={'inspections':copy.deepcopy(asset.get('inspections',[])), 'review_items':copy.deepcopy(asset.get('review_items',[]))}
+            draft=copy.deepcopy(asset)
+            for item in dates:
+                draft['inspections'][item['inspection_index']][item['field']]=item['after']
+            reconcile_import_reviews(draft)
+            after={'inspections':draft['inspections'],'review_items':draft.get('review_items',[])}
+            changes.append({'asset_id':asset['id'],'name':asset['name'],'version':asset['version'],
+                'field':'inspection_dates','before':before,'after':after,'date_changes':dates,
+                'remaining_issues':validate_record(draft)})
+        result={'preview_id':str(uuid.uuid4()),'revision':revision,'changes':changes,'selected_count':len(changes),
+                'date_count':len(selected_keys),'operation':{'operation':'selected_'+mode+'_correction'}}
+        conn.execute('INSERT INTO bulk_operations(operation_id,state,contents) VALUES (?,?,?)',
+                     (result['preview_id'],'preview',json.dumps(result,ensure_ascii=False)))
+        return result
 
 
 def _write_bulk(conn,store,changes,origin,reason):
@@ -472,7 +598,7 @@ def _write_bulk(conn,store,changes,origin,reason):
 
 @serialized
 def apply_bulk_correction(store,preview_id,expected_revision,reason):
-    if not isinstance(reason,str) or not reason.strip():raise ValueError('Record a reason for this bulk correction')
+    if reason is not None and not isinstance(reason,str):raise ValueError('Invalid correction reason')
     from .recovery import automatic_backup
     backup=automatic_backup(store,force=True)
     with closing(sqlite3.connect(store.db_path)) as conn,conn:
@@ -482,6 +608,12 @@ def apply_bulk_correction(store,preview_id,expected_revision,reason):
         if not row:raise ValueError('Bulk preview is no longer available')
         preview=json.loads(row[0])
         if preview['revision']!=expected_revision:raise ValueError('Bulk preview is stale')
+        date_reasons={'year_only_january':'Reviewed year-only dates using January.',
+                      'month_year':'Reviewed month-year source dates.',
+                      'selected_century_correction':'Reviewed selected 19xx dates as 20xx.',
+                      'selected_named_year_correction':'Reviewed selected named dates in the 2000s.'}
+        reason=(reason or '').strip() or date_reasons.get(preview.get('operation',{}).get('operation'))
+        if not reason:raise ValueError('Record a reason for this bulk correction')
         changes=_write_bulk(conn,store,preview['changes'],'bulk',reason)
         conn.execute("UPDATE bulk_operations SET state='applied',contents=? WHERE operation_id=?",(json.dumps({**preview,'changes':changes},ensure_ascii=False),preview_id))
     return {'operation_id':preview_id,'updated':len(changes),'backup':backup['local_path']}
@@ -512,13 +644,21 @@ def query_quality(store,filters):
         assets,issues=_scan(conn,date.today().strftime('%Y-%m'))
         quality={'issues':issues,'issue_count':sum(i['state']=='open' for i in issues),'affected_assets':len({i['asset_id'] for i in issues if i['state']=='open'}),'asset_count':len(assets),'revision':conn.execute('SELECT value FROM version_clock WHERE id=1').fetchone()[0],'rules_version':RULES_VERSION}
         readiness=_readiness_from_scan(conn,assets,issues)
+        date_review_counts={'century':len(_century_candidates(assets)), 'named_year':len(_named_year_candidates(assets)), 'year_only':0, 'month_year':0}
+        for asset in assets:
+            if asset.get('record_status')=='Archived':continue
+            for inspection in asset.get('inspections',[]):
+                if inspection.get('applicable')!='Yes':continue
+                for field,original in (('last_inspection_month','last_original'),('next_inspection_month','next_original')):
+                    for key,mode in (('year_only','year_only_january'),('month_year','month_year')):
+                        if _source_date_month(inspection,field,original,mode):date_review_counts[key]+=1
     query=str(filters.get('search') or '').casefold();severity=filters.get('severity')
     issues=[i for i in quality['issues'] if i['state']=='open' and (not severity or i['severity']==severity) and (not query or query in ' '.join(str(i.get(k) or '') for k in ('asset_id','field','message')).casefold())]
     total=len(issues);excluded_count=len(readiness['excluded'])
     pages=max(1,(max(total,excluded_count)+size-1)//size);page=min(page,pages);start=(page-1)*size
     return {'quality':{**quality,'issues':issues[start:start+size],'filtered_issue_count':total},
             'readiness':{**readiness,'excluded':readiness['excluded'][start:start+size],'excluded_count':excluded_count,'eligible_count':len(readiness['eligible'])},
-            'page':page,'pages':pages,'size':size}
+            'page':page,'pages':pages,'size':size,'date_review_counts':date_review_counts}
 
 
 @serialized

@@ -192,6 +192,21 @@ def create_server(store, port=0):
                 if path == '/api/quality/query': return self.respond(200,query_quality(store,data))
                 if path == '/api/import/resume': return self.respond(200,resume_import(store,data.get('token')))
                 if path == '/api/register/query': return self.respond(200,query_register(store,data))
+                if path == '/api/bulk/named-year/candidates':
+                    from .quality import named_year_candidates
+                    return self.respond(200,named_year_candidates(store))
+                if path == '/api/bulk/named-year/preview':
+                    from .quality import preview_named_year_dates
+                    return self.respond(200,preview_named_year_dates(store,data.get('revision'),data.get('selected_keys')))
+                if path == '/api/bulk/century/candidates':
+                    from .quality import century_date_candidates
+                    return self.respond(200,century_date_candidates(store))
+                if path == '/api/bulk/century/preview':
+                    from .quality import preview_century_dates
+                    return self.respond(200,preview_century_dates(store,data.get('revision'),data.get('selected_keys')))
+                if path == '/api/bulk/month-year/preview':
+                    from .quality import preview_month_year_dates
+                    return self.respond(200,preview_month_year_dates(store))
                 if path == '/api/bulk/year-only/preview':
                     from .quality import preview_year_only_dates
                     return self.respond(200,preview_year_only_dates(store))

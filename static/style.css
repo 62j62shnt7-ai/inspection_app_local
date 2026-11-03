@@ -220,8 +220,8 @@ main{padding:0 28px 56px;margin-top:30px}h1{font-size:27px;font-weight:730;lette
 .management-panel #backup-folder{display:block;width:min(100%,560px);margin-top:6px}.backup-row>div{flex:1;min-width:0}.backup-row .backup-choice{margin:0}
 
 /* Keep year-only review controls visible even with a full-register preview. */
-#year-only-dialog{width:min(900px,96vw);height:90vh;max-height:90vh;padding:0;overflow:hidden}
-#year-only-dialog[open]{display:flex;flex-direction:column}
+#year-only-dialog,#month-year-dialog,#century-dialog,#named-year-dialog{width:min(900px,96vw);height:90vh;max-height:90vh;padding:0;overflow:hidden}
+#year-only-dialog[open],#month-year-dialog[open],#century-dialog[open],#named-year-dialog[open]{display:flex;flex-direction:column}
 .year-only-header,.year-only-footer{flex:none;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 20px;background:var(--panel)}
 .year-only-header{border-bottom:1px solid var(--line)}
 .year-only-header h2{margin:0}.year-only-header button{flex:none}
@@ -282,3 +282,7 @@ main{padding:0 28px 56px;margin-top:30px}h1{font-size:27px;font-weight:730;lette
 /* Native Windows select menus may otherwise pair inherited light text with a white menu. */
 :root[data-theme=dark] select option,:root[data-theme=dark] select optgroup{background-color:#172230;color:#e6edf5}
 :root[data-theme=light] select option,:root[data-theme=light] select optgroup{background-color:#fff;color:#182d3e}
+
+.century-choice{display:block;margin:10px 0;padding:10px;border:1px solid var(--line);border-radius:6px}.century-choice input{margin-right:8px}.century-choice small{display:block;margin-left:24px}
+
+.attention-navigation:not([hidden]){display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 12px}.attention-navigation span:last-child{font-size:.85rem;color:var(--muted)}

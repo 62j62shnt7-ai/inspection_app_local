@@ -403,3 +403,42 @@ test('late review preview cannot mutate a newer editor',async()=>{
  requests[1].resolve({});await new Promise(setImmediate);
  assert.deepEqual(applied,[]);assert.equal(ctx.editing.id,'b');
 });
+
+test('attention navigation keeps list order and requires confirmation before discarding edits',async()=>{
+ const calls=[];let allow=false;const ctx=vm.createContext({attentionNavigation:{rows:[{assetId:'a',inspectionType:'OSI'},{assetId:'b',inspectionType:'Internal'}],index:0},editorDirty:true,editorSavePending:false,attentionNavigationPending:false,confirm:()=>allow,discardEditorDraft:()=>calls.push('discard'),openEditor:async(id,options)=>{calls.push([id,options.inspectionType,options.discardPreviousDraft]);return true},updateAttentionNavigation(){},$:()=>({textContent:''})});
+ for(const name of ['navigateAttentionEntry'])vm.runInContext('async '+getFunction(name),ctx);
+ await ctx.navigateAttentionEntry(1);assert.deepEqual(calls,[]);allow=true;await ctx.navigateAttentionEntry(1);assert.deepEqual(calls,[['b','Internal',true]]);
+ await ctx.navigateAttentionEntry(1);assert.equal(calls.length,1);
+});
+
+test('attention shortcuts require Alt arrows outside editable controls and other widgets',()=>{
+ const ctx=vm.createContext({});vm.runInContext(getFunction('attentionShortcutDirection'),ctx);
+ const event=(key,target,extra={})=>({key,altKey:true,ctrlKey:false,metaKey:false,shiftKey:false,defaultPrevented:false,target:{closest:()=>target},...extra});
+ assert.equal(ctx.attentionShortcutDirection(event('ArrowRight',null)),1);assert.equal(ctx.attentionShortcutDirection(event('ArrowLeft',null)),-1);
+ assert.equal(ctx.attentionShortcutDirection(event('ArrowRight',{})),0);assert.equal(ctx.attentionShortcutDirection(event('ArrowRight',null,{altKey:false})),0);assert.equal(ctx.attentionShortcutDirection(event('ArrowRight',null,{defaultPrevented:true})),0);
+});
+
+test('failed attention navigation retains the current draft and permits retry',async()=>{
+ const nodes={'#fields':{},'#save-asset':{},'#edit-error':{}};
+ const ctx=vm.createContext({attentionNavigation:{rows:[{assetId:'a',inspectionType:'OSI'},{assetId:'b',inspectionType:'OSI'}],index:0},editorDirty:true,editorSavePending:false,attentionNavigationPending:false,confirm:()=>true,openEditor:async()=>{throw Error('Offline')},updateAttentionNavigation(){},$:s=>nodes[s]});
+ vm.runInContext('async '+getFunction('navigateAttentionEntry'),ctx);await ctx.navigateAttentionEntry(1);
+ assert.equal(ctx.editorDirty,true);assert.equal(ctx.attentionNavigation.index,0);assert.match(nodes['#edit-error'].textContent,/Offline/);assert.equal(nodes['#fields'].inert,false);assert.equal(nodes['#save-asset'].disabled,false);
+});
+
+test('save and next saves before opening the next entry and keeps the panel open',async()=>{
+ const h=editorSaveHarness(),opened=[];h.ctx.attentionNavigation={rows:[{assetId:'a',inspectionType:'OSI'},{assetId:'b',inspectionType:'OSI'}],index:0,attention:true};h.ctx.openEditor=async(id,options)=>{opened.push([id,options.attentionNavigation.index]);return true};h.ctx.updateAttentionNavigation=()=>{};
+ const pending=h.nodes['#form'].onsubmit({preventDefault(){},submitter:{id:'save-next'}});assert.deepEqual(opened,[]);
+ h.resolve();await pending;assert.deepEqual(opened,[['b',1]]);assert.equal(h.nodes['#editor'].closed,undefined);assert.equal(h.ctx.editorDirty,false);
+});
+
+test('save and next leaves the current draft open when save fails',async()=>{
+ const h=editorSaveHarness();let opened=0;h.ctx.attentionNavigation={rows:[{assetId:'a'},{assetId:'b'}],index:0};h.ctx.openEditor=async()=>{opened++};h.ctx.updateAttentionNavigation=()=>{};
+ const pending=h.nodes['#form'].onsubmit({preventDefault(){},submitter:{id:'save-next'}});h.reject();await pending;
+ assert.equal(opened,0);assert.equal(h.ctx.editorDirty,true);assert.equal(h.nodes['#editor'].closed,undefined);assert.match(h.nodes['#edit-error'].textContent,/Offline/);
+});
+
+test('save and next reports a failed next load without discarding the saved entry',async()=>{
+ const h=editorSaveHarness();h.ctx.attentionNavigation={rows:[{assetId:'a'},{assetId:'b'}],index:0};h.ctx.openEditor=async()=>{throw Error('Unavailable')};h.ctx.updateAttentionNavigation=()=>{};
+ const pending=h.nodes['#form'].onsubmit({preventDefault(){},submitter:{id:'save-next'}});h.resolve();await pending;
+ assert.equal(h.ctx.editorDirty,false);assert.equal(h.nodes['#editor'].closed,undefined);assert.match(h.nodes['#edit-error'].textContent,/Saved, but the next entry could not be opened/);
+});

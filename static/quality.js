@@ -12,12 +12,17 @@ function renderBulkVerificationPreview(){if(!bulkVerificationPreview)return;cons
 function updateBulkVerificationApplyState(){$('#batch-verification-apply').disabled=!(bulkVerificationPreview&&$('#batch-verification-confirm').checked&&$('#batch-verification-evidence').value.trim())}
 async function applyBulkVerification(){const evidence=$('#batch-verification-evidence').value.trim();if(!bulkVerificationPreview||!evidence||!$('#batch-verification-confirm').checked){updateBulkVerificationApplyState();return}const button=$('#batch-verification-apply');button.disabled=true;try{const result=await api('/api/verification/bulk/apply',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({preview_id:bulkVerificationPreview.preview_id,revision:bulkVerificationPreview.revision,evidence})});$('#batch-verification-dialog').close();bulkVerificationPreview=null;selectedAssets.clear();await load();await renderAssets();await loadQuality();message(`Verified ${result.verified_asset_count} assets and ${result.verified_field_count} field values. ${result.still_excluded_count} selected assets remain excluded until their blocking issues are resolved.`)}catch(error){$('#batch-verification-error').textContent=error.message}finally{button.disabled=false;updateBulkVerificationApplyState()}}
 async function loadQuality(){const generation=++qualityGeneration;try{const result=await api('/api/quality/query',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({page:qualityPage,size:50,search:$('#quality-search').value,severity:$('#quality-severity').value})});if(generation!==qualityGeneration)return;qualityState=result;qualityPage=result.page;renderQuality();await loadSnapshots()}catch(error){message(error.message,true)}}
+function renderDateReviewPanels(counts){
+ for(const [id,key] of [['century-panel','century'],['named-year-panel','named_year'],['month-year-panel','month_year'],['year-only-panel','year_only']])$('#'+id).hidden=!(counts?.[key]>0);
+}
 function renderQuality(){
  if(!qualityState)return;const {quality,readiness}=qualityState;
+ renderDateReviewPanels(qualityState.date_review_counts);
  $('#quality-summary').textContent=`${readiness.eligible_count} passed checks and eligible · ${readiness.excluded_count} excluded from a trusted snapshot · ${quality.issue_count} open issues across ${quality.affected_assets} assets`;
  const body=$('#quality-rows');body.replaceChildren();
  const list=quality.issues;$('#quality-page-info').textContent=`Page ${qualityState.page} of ${qualityState.pages} · ${quality.filtered_issue_count} matching open issues · issue and exclusion lists share these page controls`;$('#quality-prev').disabled=qualityState.page===1;$('#quality-next').disabled=qualityState.page===qualityState.pages;
- for(const issue of list){const row=el('tr',null,`quality-issue-row ${issue.severity==='blocking'?'quality-blocking':'quality-warning'}`),severity=el('td'),badge=el('span',issue.severity==='blocking'?'Blocking issue':'Warning','quality-severity-badge '+(issue.severity==='blocking'?'blocking':'warning'));severity.append(badge);const asset=assets.find(item=>item.id===issue.asset_id);row.append(severity,el('td',asset?assetDisplayName(asset):issue.asset_id),el('td',verificationLabel(issue.field)),el('td',issue.message));const actions=el('td'),open=el('button','Open asset','secondary');open.onclick=()=>openEditor(issue.asset_id,{issue});actions.append(open);if(['chronology','source-review','source-review-item','incoming-difference','identity-collision'].includes(issue.rule_id)){const resolve=el('button',issue.rule_id==='incoming-difference'?'Keep current value':'Review exception','secondary');resolve.onclick=()=>openIssueReview(issue);actions.append(resolve)}row.append(actions);body.append(row)}
+ const navigationRows=list.map(issue=>({assetId:issue.asset_id,issue}));
+ for(const [index,issue] of list.entries()){const row=el('tr',null,`quality-issue-row ${issue.severity==='blocking'?'quality-blocking':'quality-warning'}`),severity=el('td'),badge=el('span',issue.severity==='blocking'?'Blocking issue':'Warning','quality-severity-badge '+(issue.severity==='blocking'?'blocking':'warning'));severity.append(badge);const asset=assets.find(item=>item.id===issue.asset_id);row.append(severity,el('td',asset?assetDisplayName(asset):issue.asset_id),el('td',verificationLabel(issue.field)),el('td',issue.message));const actions=el('td'),open=el('button','Open asset','secondary');open.onclick=()=>openEditor(issue.asset_id,{issue,attentionNavigation:{rows:navigationRows,index,attention:false}});actions.append(open);if(['chronology','source-review','source-review-item','incoming-difference','identity-collision'].includes(issue.rule_id)){const resolve=el('button',issue.rule_id==='incoming-difference'?'Keep current value':'Review exception','secondary');resolve.onclick=()=>openIssueReview(issue);actions.append(resolve)}row.append(actions);body.append(row)}
  if(!list.length){const row=el('tr'),cell=el('td','No open issues match these filters. Check readiness below: passing checks alone does not verify fields.');cell.colSpan=5;row.append(cell);body.append(row)}
  const excluded=$('#quality-excluded');excluded.replaceChildren();for(const asset of readiness.excluded){const item=el('details'),title=el('summary',asset.name+' · '+asset.reasons.length+' reasons');item.append(title);for(const reason of asset.reasons)item.append(el('p',reason.startsWith('Verify ')?'Verify '+verificationLabel(reason.slice(7)):reason));const verify=el('button','Open asset to correct issues','secondary');verify.onclick=()=>openEditor(asset.asset_id);item.append(verify);excluded.append(item)}
 }
@@ -131,7 +136,7 @@ function renderYearOnlyPreview(preview){
 }
 async function openYearOnlyDates(){
  const button=$('#year-only-open');button.disabled=true;yearOnlyPreview=null;
- $('#year-only-error').textContent='';$('#year-only-reason').value='Use January for year-only inspection dates; retain each existing year.';
+ $('#year-only-error').textContent='';
  $('#year-only-preview').replaceChildren(el('p','Finding year-only dates…'));$('#year-only-apply').disabled=true;$('#year-only-dialog').showModal();
  try{yearOnlyPreview=await api('/api/bulk/year-only/preview',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});renderYearOnlyPreview(yearOnlyPreview)}
  catch(error){$('#year-only-error').textContent=error.message}finally{button.disabled=false}
@@ -140,7 +145,7 @@ async function applyYearOnlyDates(){
  if(!yearOnlyPreview?.date_count)return;
  const button=$('#year-only-apply');button.disabled=true;
  try{
-  const result=await api('/api/bulk/apply',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({preview_id:yearOnlyPreview.preview_id,revision:yearOnlyPreview.revision,reason:$('#year-only-reason').value})});
+  const result=await api('/api/bulk/apply',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({preview_id:yearOnlyPreview.preview_id,revision:yearOnlyPreview.revision})});
   try{sessionStorage.setItem('inspection-last-bulk',result.operation_id)}catch{}
   $('#bulk-revert-last').hidden=false;$('#bulk-revert-last').dataset.operation=result.operation_id;
   const count=yearOnlyPreview.date_count;yearOnlyPreview=null;$('#year-only-dialog').close();
@@ -152,4 +157,159 @@ if(typeof document!=='undefined'){
  $('#year-only-close').onclick=()=>{$('#year-only-dialog').close()};
  $('#year-only-dismiss').onclick=()=>{$('#year-only-dialog').close()};
  $('#year-only-apply').onclick=applyYearOnlyDates;
+}
+
+let monthYearPreview=null, monthYearGeneration=0;
+function renderMonthYearPreview(preview){
+ const body=$('#month-year-preview');body.replaceChildren(el('p',`${preview.date_count} inspection date${preview.date_count===1?'':'s'} on ${preview.selected_count} asset${preview.selected_count===1?'':'s'} will change.`));
+ for(const change of preview.changes){
+  const section=el('section',null,'subtle-panel');section.append(el('strong',`${change.name} · ${change.asset_id}`));
+  for(const date of change.date_changes)section.append(el('p',`${date.inspection_type} · ${verificationLabel(date.field)}: ${date.original} → ${date.after}`));
+  for(const issue of change.remaining_issues)section.append(el('p','Still needs checking: '+issue.message,issue.severity==='blocking'?'error':'muted'));
+  body.append(section);
+ }
+ if(!preview.date_count)body.append(el('p','No matching month-year dates. Nothing will be changed.'));
+ $('#month-year-apply').disabled=!preview.date_count;
+}
+async function openMonthYearDates(){
+ const generation=++monthYearGeneration,button=$('#month-year-open');button.disabled=true;monthYearPreview=null;
+ $('#month-year-error').textContent='';
+ $('#month-year-preview').replaceChildren(el('p','Finding month-year dates…'));$('#month-year-apply').disabled=true;$('#month-year-dialog').showModal();
+ try{const preview=await api('/api/bulk/month-year/preview',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});if(generation===monthYearGeneration&&$('#month-year-dialog').open){monthYearPreview=preview;renderMonthYearPreview(preview)}}
+ catch(error){if(generation===monthYearGeneration)$('#month-year-error').textContent=error.message}finally{button.disabled=false}
+}
+function closeMonthYearDates(){monthYearGeneration++;monthYearPreview=null;$('#month-year-dialog').close()}
+async function applyMonthYearDates(){
+ if(!monthYearPreview?.date_count)return;
+ const selected=monthYearPreview,generation=monthYearGeneration,button=$('#month-year-apply');button.disabled=true;
+ try{
+  const result=await api('/api/bulk/apply',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({preview_id:selected.preview_id,revision:selected.revision})});
+  try{sessionStorage.setItem('inspection-last-bulk',result.operation_id)}catch{}
+  $('#bulk-revert-last').hidden=false;$('#bulk-revert-last').dataset.operation=result.operation_id;
+  if(generation===monthYearGeneration)closeMonthYearDates();
+  await load();await loadQuality();message(`Corrected ${selected.date_count} month-year inspection dates. Matching review items were reassessed; other issues remain visible.`);
+ }catch(error){if(generation===monthYearGeneration)$('#month-year-error').textContent=error.message}finally{if(generation===monthYearGeneration)button.disabled=!monthYearPreview?.date_count}
+}
+if(typeof document!=='undefined'){
+ $('#month-year-open').onclick=openMonthYearDates;
+ $('#month-year-close').onclick=closeMonthYearDates;
+ $('#month-year-dismiss').onclick=closeMonthYearDates;
+ $('#month-year-apply').onclick=applyMonthYearDates;
+ $('#month-year-dialog').addEventListener('cancel',()=>{monthYearGeneration++;monthYearPreview=null});
+}
+
+let centuryListing=null,centuryPreview=null,centuryGeneration=0,centurySelected=new Set(),centuryApplying=false,centuryChecks=new Map();
+function invalidateCenturyPreview(){
+ centuryPreview=null;$('#century-preview').replaceChildren();$('#century-apply').disabled=true;
+ $('#century-preview-button').disabled=!centurySelected.size;
+}
+function toggleAllCenturyDates(){
+ const checked=$('#century-select-all').checked;
+ for(const [key,check] of centuryChecks){check.checked=checked;if(checked)centurySelected.add(key);else centurySelected.delete(key)}
+ $('#century-select-all').indeterminate=false;centuryGeneration++;invalidateCenturyPreview();
+}
+function renderCenturyCandidates(listing){
+ centuryChecks=new Map();const all=$('#century-select-all');all.checked=false;all.indeterminate=false;all.disabled=!listing.candidates.length;
+ const body=$('#century-candidates');body.replaceChildren(el('p',`${listing.candidates.length} date${listing.candidates.length===1?'':'s'} available to review.`));
+ for(const candidate of listing.candidates){
+  const label=el('label',null,'century-choice'),check=el('input');check.type='checkbox';check.checked=false;
+  centuryChecks.set(candidate.key,check);
+  check.onchange=()=>{if(check.checked)centurySelected.add(candidate.key);else centurySelected.delete(candidate.key);all.checked=centurySelected.size===centuryChecks.size;all.indeterminate=centurySelected.size>0&&!all.checked;centuryGeneration++;invalidateCenturyPreview()};
+  label.append(check,document.createTextNode(`${candidate.name} · ${candidate.asset_id} · ${candidate.inspection_type} · ${verificationLabel(candidate.field)}: ${candidate.before} → ${candidate.after}`));
+  label.append(el('small',`Source: ${candidate.source_sheet||'not recorded'} ${candidate.source_cell||''} · Original value: ${candidate.original??'not recorded'}`));body.append(label);
+ }
+}
+async function openCenturyDates(){
+ const generation=++centuryGeneration,button=$('#century-open');button.disabled=true;centuryListing=null;centurySelected=new Set();invalidateCenturyPreview();
+ $('#century-select-all').checked=false;$('#century-select-all').indeterminate=false;$('#century-select-all').disabled=true;
+ $('#century-error').textContent='';$('#century-candidates').replaceChildren(el('p','Finding dates…'));$('#century-dialog').showModal();
+ try{const listing=await api('/api/bulk/century/candidates',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});if(generation===centuryGeneration&&$('#century-dialog').open){centuryListing=listing;renderCenturyCandidates(listing)}}
+ catch(error){if(generation===centuryGeneration)$('#century-error').textContent=error.message}finally{button.disabled=false}
+}
+function closeCenturyDates(){if(centuryApplying)return;centuryGeneration++;centuryListing=null;centuryPreview=null;$('#century-dialog').close()}
+async function previewCenturyDates(){
+ if(!centuryListing||!centurySelected.size)return;
+ const generation=++centuryGeneration,button=$('#century-preview-button');button.disabled=true;centuryPreview=null;$('#century-apply').disabled=true;$('#century-error').textContent='';
+ try{
+  const preview=await api('/api/bulk/century/preview',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({revision:centuryListing.revision,selected_keys:[...centurySelected]})});
+  if(generation!==centuryGeneration||!$('#century-dialog').open)return;
+  centuryPreview=preview;const body=$('#century-preview');body.replaceChildren(el('h3',`Preview: ${preview.date_count} selected date${preview.date_count===1?'':'s'}`));
+  for(const change of preview.changes){const section=el('section',null,'subtle-panel');section.append(el('strong',`${change.name} · ${change.asset_id}`));for(const date of change.date_changes)section.append(el('p',`${date.inspection_type} · ${verificationLabel(date.field)}: ${date.before} → ${date.after}`));for(const issue of change.remaining_issues)section.append(el('p','Still needs checking: '+issue.message,issue.severity==='blocking'?'error':'muted'));body.append(section)}
+  $('#century-apply').disabled=false;
+ }catch(error){if(generation===centuryGeneration)$('#century-error').textContent=error.message}finally{if(generation===centuryGeneration)button.disabled=!centurySelected.size}
+}
+async function applyCenturyDates(){
+ if(!centuryPreview?.date_count||centuryApplying)return;
+ const selected=centuryPreview,generation=centuryGeneration,button=$('#century-apply');centuryApplying=true;button.disabled=true;
+ const controls=$('#century-dialog').querySelectorAll('input, textarea, button');for(const control of controls)control.disabled=true;
+ try{
+  const result=await api('/api/bulk/apply',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({preview_id:selected.preview_id,revision:selected.revision})});
+  try{sessionStorage.setItem('inspection-last-bulk',result.operation_id)}catch{}
+  $('#bulk-revert-last').hidden=false;$('#bulk-revert-last').dataset.operation=result.operation_id;
+  centuryApplying=false;if(generation===centuryGeneration)closeCenturyDates();
+  await load();await loadQuality();message(`Corrected ${selected.date_count} selected inspection dates. Other issues remain visible.`);
+ }catch(error){if(generation===centuryGeneration)$('#century-error').textContent=error.message}finally{centuryApplying=false;for(const control of controls)control.disabled=false;if(generation===centuryGeneration)button.disabled=!centuryPreview?.date_count}
+}
+if(typeof document!=='undefined'){
+ $('#century-open').onclick=openCenturyDates;$('#century-close').onclick=closeCenturyDates;$('#century-dismiss').onclick=closeCenturyDates;
+ $('#century-select-all').onchange=toggleAllCenturyDates;$('#century-preview-button').onclick=previewCenturyDates;$('#century-apply').onclick=applyCenturyDates;
+ $('#century-dialog').addEventListener('cancel',event=>{if(centuryApplying){event.preventDefault();return}centuryGeneration++;centuryListing=null;centuryPreview=null});
+}
+
+let namedYearListing=null,namedYearPreview=null,namedYearGeneration=0,namedYearSelected=new Set(),namedYearApplying=false,namedYearChecks=new Map();
+function invalidateNamedYearPreview(){
+ namedYearPreview=null;$('#named-year-preview').replaceChildren();$('#named-year-apply').disabled=true;
+ $('#named-year-preview-button').disabled=!namedYearSelected.size;
+}
+function toggleAllNamedYearDates(){
+ const checked=$('#named-year-select-all').checked;
+ for(const [key,check] of namedYearChecks){check.checked=checked;if(checked)namedYearSelected.add(key);else namedYearSelected.delete(key)}
+ $('#named-year-select-all').indeterminate=false;namedYearGeneration++;invalidateNamedYearPreview();
+}
+function renderNamedYearCandidates(listing){
+ namedYearChecks=new Map();const all=$('#named-year-select-all');all.checked=false;all.indeterminate=false;all.disabled=!listing.candidates.length;
+ const body=$('#named-year-candidates');body.replaceChildren(el('p',`${listing.candidates.length} date${listing.candidates.length===1?'':'s'} available to review.`));
+ for(const candidate of listing.candidates){
+  const label=el('label',null,'century-choice'),check=el('input');check.type='checkbox';check.checked=false;
+  namedYearChecks.set(candidate.key,check);
+  check.onchange=()=>{if(check.checked)namedYearSelected.add(candidate.key);else namedYearSelected.delete(candidate.key);all.checked=namedYearSelected.size===namedYearChecks.size;all.indeterminate=namedYearSelected.size>0&&!all.checked;namedYearGeneration++;invalidateNamedYearPreview()};
+  label.append(check,document.createTextNode(`${candidate.name} · ${candidate.asset_id} · ${candidate.inspection_type} · ${verificationLabel(candidate.field)}: ${candidate.original} → ${candidate.after}`));
+  label.append(el('small',`Source: ${candidate.source_sheet||'not recorded'} ${candidate.source_cell||''} · Original value: ${candidate.original??'not recorded'}`));body.append(label);
+ }
+}
+async function openNamedYearDates(){
+ const generation=++namedYearGeneration,button=$('#named-year-open');button.disabled=true;namedYearListing=null;namedYearSelected=new Set();invalidateNamedYearPreview();
+ $('#named-year-select-all').checked=false;$('#named-year-select-all').indeterminate=false;$('#named-year-select-all').disabled=true;
+ $('#named-year-error').textContent='';$('#named-year-candidates').replaceChildren(el('p','Finding dates…'));$('#named-year-dialog').showModal();
+ try{const listing=await api('/api/bulk/named-year/candidates',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});if(generation===namedYearGeneration&&$('#named-year-dialog').open){namedYearListing=listing;renderNamedYearCandidates(listing)}}
+ catch(error){if(generation===namedYearGeneration)$('#named-year-error').textContent=error.message}finally{button.disabled=false}
+}
+function closeNamedYearDates(){if(namedYearApplying)return;namedYearGeneration++;namedYearListing=null;namedYearPreview=null;$('#named-year-dialog').close()}
+async function previewNamedYearDates(){
+ if(!namedYearListing||!namedYearSelected.size)return;
+ const generation=++namedYearGeneration,button=$('#named-year-preview-button');button.disabled=true;namedYearPreview=null;$('#named-year-apply').disabled=true;$('#named-year-error').textContent='';
+ try{
+  const preview=await api('/api/bulk/named-year/preview',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({revision:namedYearListing.revision,selected_keys:[...namedYearSelected]})});
+  if(generation!==namedYearGeneration||!$('#named-year-dialog').open)return;
+  namedYearPreview=preview;const body=$('#named-year-preview');body.replaceChildren(el('h3',`Preview: ${preview.date_count} selected date${preview.date_count===1?'':'s'}`));
+  for(const change of preview.changes){const section=el('section',null,'subtle-panel');section.append(el('strong',`${change.name} · ${change.asset_id}`));for(const date of change.date_changes)section.append(el('p',`${date.inspection_type} · ${verificationLabel(date.field)}: ${date.original} → ${date.after}`));for(const issue of change.remaining_issues)section.append(el('p','Still needs checking: '+issue.message,issue.severity==='blocking'?'error':'muted'));body.append(section)}
+  $('#named-year-apply').disabled=false;
+ }catch(error){if(generation===namedYearGeneration)$('#named-year-error').textContent=error.message}finally{if(generation===namedYearGeneration)button.disabled=!namedYearSelected.size}
+}
+async function applyNamedYearDates(){
+ if(!namedYearPreview?.date_count||namedYearApplying)return;
+ const selected=namedYearPreview,generation=namedYearGeneration,button=$('#named-year-apply');namedYearApplying=true;button.disabled=true;
+ const controls=$('#named-year-dialog').querySelectorAll('input, textarea, button');for(const control of controls)control.disabled=true;
+ try{
+  const result=await api('/api/bulk/apply',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({preview_id:selected.preview_id,revision:selected.revision})});
+  try{sessionStorage.setItem('inspection-last-bulk',result.operation_id)}catch{}
+  $('#bulk-revert-last').hidden=false;$('#bulk-revert-last').dataset.operation=result.operation_id;
+  namedYearApplying=false;if(generation===namedYearGeneration)closeNamedYearDates();
+  await load();await loadQuality();message(`Corrected ${selected.date_count} selected inspection dates. Other issues remain visible.`);
+ }catch(error){if(generation===namedYearGeneration)$('#named-year-error').textContent=error.message}finally{namedYearApplying=false;for(const control of controls)control.disabled=false;if(generation===namedYearGeneration)button.disabled=!namedYearPreview?.date_count}
+}
+if(typeof document!=='undefined'){
+ $('#named-year-open').onclick=openNamedYearDates;$('#named-year-close').onclick=closeNamedYearDates;$('#named-year-dismiss').onclick=closeNamedYearDates;
+ $('#named-year-select-all').onchange=toggleAllNamedYearDates;$('#named-year-preview-button').onclick=previewNamedYearDates;$('#named-year-apply').onclick=applyNamedYearDates;
+ $('#named-year-dialog').addEventListener('cancel',event=>{if(namedYearApplying){event.preventDefault();return}namedYearGeneration++;namedYearListing=null;namedYearPreview=null});
 }

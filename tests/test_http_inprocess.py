@@ -163,6 +163,33 @@ class HttpInProcessTests(unittest.TestCase):
         self.assertEqual(json.loads(data)['date_count'],1)
         self.assertEqual(self.store.get_asset(asset['id']),asset)
 
+    def test_month_year_preview_requires_token_and_preserves_asset(self):
+        import re
+        asset=self.store.save_asset(None,{'name':'Line','family':'Flowline','inspections':[{'inspection_type':'OSI','applicable':'Yes','next_original':'2-2026'}]},None)
+        self.assertEqual(self.request('POST','/api/bulk/month-year/preview',b'{}')[0],403)
+        _,page=self.request('GET','/')
+        token=re.search(rb'name="app-token" content="([^"]+)"',page).group(1).decode()
+        status,data=self.request('POST','/api/bulk/month-year/preview',b'{}',{'X-App-Token':token})
+        self.assertEqual(status,200)
+        self.assertEqual(json.loads(data)['changes'][0]['date_changes'][0]['after'],'2026-02')
+        self.assertEqual(self.store.get_asset(asset['id']),asset)
+
+    def test_century_review_endpoints_require_token_and_preview_selection(self):
+        import re
+        self.store.save_asset(None,{'name':'Line','family':'Flowline','inspections':[{'inspection_type':'OSI','applicable':'Yes','next_inspection_month':'1935-08'}]},None)
+        self.assertEqual(self.request('POST','/api/bulk/century/candidates',b'{}')[0],403)
+        _,page=self.request('GET','/')
+        token=re.search(rb'name="app-token" content="([^"]+)"',page).group(1).decode()
+        headers={'X-App-Token':token}
+        status,data=self.request('POST','/api/bulk/century/candidates',b'{}',headers)
+        self.assertEqual(status,200)
+        listing=json.loads(data)
+        body=json.dumps({'revision':listing['revision'],'selected_keys':[listing['candidates'][0]['key']]}).encode()
+        self.assertEqual(self.request('POST','/api/bulk/century/preview',body)[0],403)
+        status,data=self.request('POST','/api/bulk/century/preview',body,headers)
+        self.assertEqual(status,200)
+        self.assertEqual(json.loads(data)['changes'][0]['date_changes'][0]['after'],'2035-08')
+
     def test_main_browser_script_includes_import_review_without_extra_route(self):
         status, page = self.request('GET', '/')
         self.assertEqual(status, 200)

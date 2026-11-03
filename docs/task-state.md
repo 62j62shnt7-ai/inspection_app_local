@@ -43,3 +43,7 @@ The checkpoint includes import/identity resolution, preserved source archives/ev
 ## Safety and scope
 
 Preserve new uncommitted work and leave operational databases, source workbooks, backups, recovery packages and distribution ZIPs untouched. Use disposable synthetic data for development/acceptance. No operational migration, push, merge, deployment or engineering certification occurred. Later rollout must retain an independent untouched data copy and follow the acceptance document's rollout/rollback instructions.
+
+## Repair progress — Task 1 / R1
+
+Content-sensitive generated review ownership protects independently imported concerns. Synthetic regression covers export/reimport, rename, readiness, snapshot exclusion and absence of manual verification. Tasks 2–7 remain open.

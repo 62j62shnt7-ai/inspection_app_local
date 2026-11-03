@@ -14,6 +14,8 @@ See the [seven-task fix plan](superpowers/plans/2026-11-02-app-review-fixes.md).
 
 ### R1 · P1 — An unrelated save clears an independent inspection concern
 
+**Repair:** Implemented with content-sensitive summary ownership. Synthetic export/reimport, unrelated save, readiness and snapshot regression retained the independent concern; generated warnings still resolve.
+
 **Location:** `inspection_app/validation.py:126–148`, `reconcile_import_reviews`; populated-field retention in `inspection_app/quality.py:229–234` makes the import sequence reachable.
 
 The retained `review_summary_generated` boolean authorizes rebuilding the current review summary indefinitely. A later import can supply an independent concern while the old marker remains true. An unrelated editor save then replaces that concern with the old generated date items' summary; if those items are resolved, it clears the status/reason.

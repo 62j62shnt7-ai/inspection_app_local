@@ -51,6 +51,67 @@ class ReviewResolutionTests(unittest.TestCase):
             self.assertIsNone(saved['inspections'][0]['review_status'])
             self.assertEqual(saved['review_items'][0]['reason'],REASON)
 
+    def test_independent_concern_survives_unrelated_save_after_generated_resolution(self):
+        asset = self.asset()
+        inspection = asset['inspections'][0]
+        reconcile_import_reviews(asset)
+        inspection['last_inspection_month'] = '2019-06'
+        reconcile_import_reviews(asset)
+        inspection.update(review_status='Review', review_reason='Confirm scope against drawing D1')
+        asset['name'] = 'Renamed line'
+        reconcile_import_reviews(asset)
+        self.assertEqual(inspection['review_status'], 'Review')
+        self.assertEqual(inspection['review_reason'], 'Confirm scope against drawing D1')
+        self.assertEqual(asset['review_items'][0]['original_value'], 'June -19')
+
+    def test_independent_imported_concern_survives_unrelated_save(self):
+        import sqlite3
+        import tempfile
+        from pathlib import Path
+        from openpyxl import load_workbook
+        from inspection_app.exports import export_workbook
+        from inspection_app.imports import preview_import, apply_import
+        from inspection_app.quality import assess_readiness, publish_snapshot
+        from inspection_app.store import Store
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            store = Store(root / 'test.db')
+            saved = store.save_asset(None, self.asset(), None)
+            saved['inspections'][0]['last_inspection_month'] = '2019-06'
+            saved = store.save_asset(saved['id'], saved, saved['version'])
+            path = export_workbook(store, root / 'synthetic.xlsx')
+            book = load_workbook(path)
+            sheet = book['Inspection Plan']
+            headers = {cell.value: cell.column for cell in sheet[1]}
+            sheet.cell(2, headers['review_status'], 'Review')
+            sheet.cell(2, headers['review_reason'], 'Confirm scope against drawing D1')
+            book.save(path)
+            preview = preview_import(store, path)
+            self.assertFalse(preview['errors'])
+            apply_import(store, preview['token'])
+            saved = store.get_asset(saved['id'])
+            saved['name'] = 'Renamed line'
+            saved = store.save_asset(saved['id'], saved, saved['version'])
+            self.assertEqual(saved['inspections'][0]['review_reason'], 'Confirm scope against drawing D1')
+            self.assertEqual(saved['inspections'][0]['review_status'], 'Review')
+            self.assertEqual(saved['review_items'][0]['original_value'], 'June -19')
+            report = assess_readiness(store)
+            self.assertNotIn(saved['id'], report['eligible'])
+            manifest = publish_snapshot(store, report['revision'], 'Review retained')
+            self.assertNotIn(saved['id'], [asset['id'] for asset in manifest['assets']])
+            with sqlite3.connect(store.db_path) as conn:
+                self.assertEqual(conn.execute('select count(*) from field_verifications').fetchone()[0], 0)
+
+    def test_independent_concern_survives_correction_of_generated_item(self):
+        asset = self.asset()
+        inspection = asset['inspections'][0]
+        reconcile_import_reviews(asset)
+        inspection.update(review_reason='Confirm scope against drawing D1', last_inspection_month='2019-06')
+        reconcile_import_reviews(asset)
+        self.assertEqual(inspection['review_status'], 'Review')
+        self.assertEqual(inspection['review_reason'], 'Confirm scope against drawing D1')
+        self.assertEqual(asset['review_items'][0]['review_status'], 'Resolved')
+
     def test_partial_correction_keeps_other_date_warning(self):
         asset=self.asset();inspection=asset['inspections'][0]
         inspection.update(next_inspection_month=None,next_original='June -20')

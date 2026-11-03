@@ -35,12 +35,12 @@
 
 **Interfaces:** Preserve `reconcile_import_reviews(asset) -> asset`, `Store.save_asset(asset_id, payload, expected_version)` and `assess_readiness(store)`. Generated date warnings still resolve when corrected; independent concerns remain until explicitly addressed.
 
-- [ ] Add `test_independent_imported_concern_survives_unrelated_save`: resolve a generated date warning, export, set inspection status/reason to `Review` / `Confirm scope against drawing D1`, reimport, rename only. Assert reason/status retained, readiness and published snapshot exclude the ID, raw evidence remains, and no manual verification is created.
-- [ ] Add cases with an independent concern alongside a still-open generated item, and repeated corrections/saves with only generated items. Assert automatic date resolution continues to work.
-- [ ] Run `python3 -m unittest discover -s tests -p 'test_review_resolution.py'`; confirm the new concern-retention test fails for R1 before implementation.
-- [ ] Replace boolean-only ownership with content-sensitive ownership. Only rewrite a summary proven to belong to the generated date items; preserve independent text in marker-only legacy records rather than guessing. New internal metadata must be optional for older DBs/exports.
-- [ ] Run review-resolution, quality-criteria and year-only suites using their individual discovery patterns; repeat the complete import/save/readiness case. All must pass.
-- [ ] Record the regression/fixing commit under R1, update contract caveats and commit this task's code/tests/docs.
+- [x] Add `test_independent_imported_concern_survives_unrelated_save`: resolve a generated date warning, export, set inspection status/reason to `Review` / `Confirm scope against drawing D1`, reimport, rename only. Assert reason/status retained, readiness and published snapshot exclude the ID, raw evidence remains, and no manual verification is created.
+- [x] Add cases with an independent concern alongside a still-open generated item, and repeated corrections/saves with only generated items. Assert automatic date resolution continues to work.
+- [x] Run `python3 -m unittest discover -s tests -p 'test_review_resolution.py'`; confirm the new concern-retention test fails for R1 before implementation.
+- [x] Replace boolean-only ownership with content-sensitive ownership. Only rewrite a summary proven to belong to the generated date items; preserve independent text in marker-only legacy records rather than guessing. New internal metadata must be optional for older DBs/exports.
+- [x] Run review-resolution, quality-criteria and year-only suites using their individual discovery patterns; repeat the complete import/save/readiness case. All must pass.
+- [x] Record the regression/fixing commit under R1, update contract caveats and commit this task's code/tests/docs.
 
 ## Task 2: Finish cleanup before changing its authorized folder — R4
 

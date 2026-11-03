@@ -123,9 +123,11 @@ def reconcile_import_reviews(asset):
     findings = validate_record(asset)
     for inspection in asset.get('inspections', []):
         kind = inspection.get('inspection_type')
-        linked_summary = bool(source_review_fields(asset, inspection)) or inspection.get('review_summary_generated', False)
-        if linked_summary:
-            inspection['review_summary_generated'] = True
+        linked_summary = bool(source_review_fields(asset, inspection)) or (
+            'review_generated_reason' in inspection
+            and inspection.get('review_reason', '') == inspection['review_generated_reason']
+            and inspection.get('review_status') in (None, '', 'Review')
+        )
         prefix = 'inspections.' + str(kind) + '.'
         for item in asset.get('review_items', []):
             if item.get('review_status') not in ('Review', 'Resolved') or not imported_date_item(asset, item):
@@ -146,4 +148,5 @@ def reconcile_import_reviews(asset):
                         remaining.append(item['reason'] if label=='date order' else label+': '+item['reason'])
             inspection['review_status'] = 'Review' if remaining else None
             inspection['review_reason'] = ' '.join(remaining)
+            inspection['review_generated_reason'] = inspection['review_reason']
     return asset

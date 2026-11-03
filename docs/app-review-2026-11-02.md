@@ -46,6 +46,8 @@ There is no in-flight guard or disabled submit state. Both pending submissions s
 
 ### R4 · P2 — Backup-folder changes can make pending cleanup block startup
 
+**Repair:** Pending cleanup is drained under the store lock before changing the authorized folder; a locked quarantine produces a retryable error without changing the setting. Synthetic deletion, retry and restart regressions pass.
+
 **Location:** `inspection_app/cleanup.py:249–260`; `inspection_app/recovery.py:46–61`; startup invokes cleanup from `inspection_app/store.py:39–40`.
 
 Committed file cleanup may finish on restart after a quarantine unlink failure. However, journal validation accepts package paths only under the currently configured copy folder. Changing that folder makes a previously authorized journal appear unsafe.

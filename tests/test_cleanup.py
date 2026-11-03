@@ -288,6 +288,51 @@ class CleanupTests(unittest.TestCase):
         (self.root/'.cleanup-journals'/'incomplete.partial').write_text('{')
         self.assertEqual(Store(self.store.db_path).get_asset(self.asset['id'])['name'],'Keep history')
 
+    def test_pending_package_cleanup_finishes_before_folder_change(self):
+        from inspection_app.recovery import configure_backup_folder, automatic_backup
+        import re
+        old = self.root/'old copies'; old.mkdir()
+        new = self.root/'new copies'; new.mkdir()
+        unrelated = old/'keep.txt'; unrelated.write_text('keep')
+        configure_backup_folder(self.store, str(old))
+        package = Path(automatic_backup(self.store, force=True)['independent_path'])
+        item = next(x for x in cleanup.inventory(self.store)['items']['recovery_packages'] if x['filename'] == package.name)
+        unlink = Path.unlink
+        def locked(path, *args, **kwargs):
+            if re.fullmatch(r'\.cleanup-[0-9a-f]{32}', path.parent.name):
+                raise OSError('locked')
+            return unlink(path, *args, **kwargs)
+        with patch.object(Path, 'unlink', locked):
+            result = self.apply('recovery_packages', [item['id']])
+        self.assertIn('quarantined', result['warning'])
+        configure_backup_folder(self.store, str(new))
+        Store(self.store.db_path)
+        self.assertEqual(unrelated.read_text(), 'keep')
+        self.assertFalse(list((self.root/'.cleanup-journals').glob('*.json')))
+        with sqlite3.connect(self.store.db_path) as conn:
+            self.assertEqual(conn.execute('select count(*) from cleanup_receipts').fetchone()[0], 0)
+
+    def test_folder_change_retries_when_pending_cleanup_remains_locked(self):
+        from inspection_app.recovery import configure_backup_folder, automatic_backup, backup_status
+        import re
+        old = self.root/'old copies'; old.mkdir()
+        new = self.root/'new copies'; new.mkdir()
+        configure_backup_folder(self.store, str(old))
+        package = Path(automatic_backup(self.store, force=True)['independent_path'])
+        item = next(x for x in cleanup.inventory(self.store)['items']['recovery_packages'] if x['filename'] == package.name)
+        unlink = Path.unlink
+        def locked(path, *args, **kwargs):
+            if re.fullmatch(r'\.cleanup-[0-9a-f]{32}', path.parent.name):
+                raise OSError('locked')
+            return unlink(path, *args, **kwargs)
+        with patch.object(Path, 'unlink', locked):
+            self.apply('recovery_packages', [item['id']])
+            with self.assertRaisesRegex(ValueError, 'cleanup'):
+                configure_backup_folder(self.store, str(new))
+            self.assertEqual(backup_status(self.store)['folder'], str(old.resolve()))
+        configure_backup_folder(self.store, str(new))
+        Store(self.store.db_path)
+
     def test_deleting_last_independent_package_invalidates_status_and_retries(self):
         from inspection_app.recovery import configure_backup_folder,automatic_backup,backup_status
         folder = self.root/'other copies';folder.mkdir()

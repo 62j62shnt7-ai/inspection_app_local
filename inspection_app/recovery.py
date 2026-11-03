@@ -51,6 +51,12 @@ def configure_backup_folder(store,folder):
     if not destination.is_dir(): raise ValueError('Choose an existing writable folder')
     if destination==Path(store.db_path).resolve().parent or destination==Path(store.db_path).resolve().parent/'backups':
         raise ValueError('Choose a separate folder for the independent copy')
+    # Complete authorized deletions while their original folder is still trusted.
+    from .cleanup import recover_pending_cleanup
+    try:
+        recover_pending_cleanup(store)
+    except OSError as exc:
+        raise ValueError('Pending cleanup could not finish; release the file and retry.') from exc
     # Prove access without overwriting user files.
     with tempfile.TemporaryFile(dir=destination): pass
     with closing(sqlite3.connect(store.db_path)) as conn,conn:

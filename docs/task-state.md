@@ -47,3 +47,7 @@ Preserve new uncommitted work and leave operational databases, source workbooks,
 ## Repair progress — Task 1 / R1
 
 Content-sensitive generated review ownership protects independently imported concerns. Synthetic regression covers export/reimport, rename, readiness, snapshot exclusion and absence of manual verification. Tasks 2–7 remain open.
+
+## Repair progress — Task 2 / R4
+
+Pending cleanup now finishes before backup-folder changes; locked cleanup leaves the old setting in place and can be retried. Tasks 3–7 remain open.

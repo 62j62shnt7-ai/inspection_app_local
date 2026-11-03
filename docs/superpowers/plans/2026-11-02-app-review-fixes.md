@@ -48,12 +48,12 @@
 
 **Interfaces:** Preserve `configure_backup_folder(store, folder)` and `recover_pending_cleanup(store)`. Folder changes stay serialized; failure leaves the prior configured folder authoritative.
 
-- [ ] Add `test_pending_package_cleanup_finishes_before_folder_change`: delete a valid synthetic package with unlink failure injected only for `.cleanup-[32 hex]` parents; release failure; change destination; reopen Store. Assert startup succeeds, journal/receipt are gone and unrelated files remain.
-- [ ] Add a continued-lock case: folder configuration returns a controlled error and leaves the old setting intact; releasing the lock and retrying succeeds. Retain an unsafe-journal-path rejection test.
-- [ ] Run `python3 -m unittest discover -s tests -p 'test_cleanup.py'`; confirm the new lifecycle fails before the fix.
-- [ ] Drain pending cleanup under the Store lock before persisting a destination change. Surface a controlled retryable configuration error if cleanup cannot finish. Do not loosen journal root checks.
-- [ ] Run cleanup, recovery and folder-picker suites individually; reopen the disposable Store after the complete sequence.
-- [ ] Update R4 with evidence and commit this repair/tests/docs.
+- [x] Add `test_pending_package_cleanup_finishes_before_folder_change`: delete a valid synthetic package with unlink failure injected only for `.cleanup-[32 hex]` parents; release failure; change destination; reopen Store. Assert startup succeeds, journal/receipt are gone and unrelated files remain.
+- [x] Add a continued-lock case: folder configuration returns a controlled error and leaves the old setting intact; releasing the lock and retrying succeeds. Retain an unsafe-journal-path rejection test.
+- [x] Run `python3 -m unittest discover -s tests -p 'test_cleanup.py'`; confirm the new lifecycle fails before the fix.
+- [x] Drain pending cleanup under the Store lock before persisting a destination change. Surface a controlled retryable configuration error if cleanup cannot finish. Do not loosen journal root checks.
+- [x] Run cleanup, recovery and folder-picker suites individually; reopen the disposable Store after the complete sequence.
+- [x] Update R4 with evidence and commit this repair/tests/docs.
 
 ## Task 3: Restore supported recovery inputs safely — R5 and R6
 

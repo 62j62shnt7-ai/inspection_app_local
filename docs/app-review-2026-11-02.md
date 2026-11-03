@@ -58,6 +58,8 @@ Committed file cleanup may finish on restart after a quarantine unlink failure. 
 
 ### R5 · P2 — Full recovery cannot repair an existing corrupt source archive
 
+**Repair:** Restore publishes a separate safety package containing current database and damaged evidence before replacing verified archives; failure rolls archive changes back. Collision, publication-failure and retry regressions cover preservation.
+
 **Location:** `inspection_app/recovery.py:153–167`, especially `:160`. This predates the latest diff.
 
 Restore rejects a damaged file occupying the canonical source path even when the package contains verified original bytes.
@@ -67,6 +69,8 @@ Restore rejects a damaged file occupying the canonical source path even when the
 **Impact and repair:** ordinary full recovery cannot heal a natural corruption case. Managed source deletion followed by restore is a workaround, not an adequate normal recovery path. Preserve damaged bytes separately, establish safety protection before modifying files, install verified originals and roll back replacements if DB restore fails. Test repair success and injected failure without weakening package validation.
 
 ### R6 · P2 — Listed legacy migration backups cannot be restored
+
+**Repair:** The supported four-column schema is initialized on a disposable copy before validation and restore. Storage and saved-backup HTTP regressions confirm unchanged input, refreshed versions and retained local settings/epoch.
 
 **Location:** `inspection_app/backups.py:90–100`; supported upgrade at `inspection_app/store.py:33–36`. Expanded backup listing now exposes these migration files.
 

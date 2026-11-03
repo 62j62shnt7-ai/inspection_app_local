@@ -287,6 +287,40 @@ class HttpInProcessTests(unittest.TestCase):
             self.assertEqual(self.store.get_asset(asset['id'])['name'], 'Upload original')
             self.assertTrue(Path(json.loads(body)['safety_backup']).is_file())
 
+    def test_generated_legacy_migration_backup_restores_via_http(self):
+        import hashlib, re, shutil, sqlite3
+        from inspection_app.backups import list_backups
+        from inspection_app.recovery import configure_backup_folder, backup_status
+        root = Path(self.tmp.name)
+        old = root/'legacy'/'master.db'; old.parent.mkdir()
+        with sqlite3.connect(old) as conn:
+            conn.execute('CREATE TABLE assets(id TEXT PRIMARY KEY,name TEXT NOT NULL,family TEXT NOT NULL,version INTEGER NOT NULL)')
+            conn.execute("INSERT INTO assets VALUES ('legacy','Original','Flowline',7)")
+        legacy = Store(old)
+        source = old.parent/'backups'/next(x['filename'] for x in list_backups(legacy) if 'migration' in x['filename'])
+        target = root/'backups'/source.name; target.parent.mkdir(exist_ok=True)
+        shutil.copyfile(source, target)
+        original_hash = hashlib.sha256(target.read_bytes()).hexdigest()
+        folder = root/'independent'; folder.mkdir()
+        configure_backup_folder(self.store, str(folder))
+        with sqlite3.connect(self.store.db_path) as conn:
+            raw = json.loads(conn.execute('SELECT contents FROM backup_settings WHERE id=1').fetchone()[0])
+            raw['data_epoch'] = 'synthetic-epoch'
+            conn.execute('UPDATE backup_settings SET contents=? WHERE id=1', (json.dumps(raw),))
+        _, page = self.request('GET', '/')
+        token = re.search(rb'name="app-token" content="([^"]+)"', page).group(1).decode()
+        headers = {'X-App-Token':token, 'X-Data-Epoch':'synthetic-epoch', 'Content-Type':'application/json'}
+        status, body = self.request('POST', '/api/backups/restore', json.dumps({'filename':target.name}).encode(), headers)
+        self.assertEqual(status, 200, body)
+        restored = self.store.get_asset('legacy')
+        self.assertEqual(restored['name'], 'Original')
+        self.assertGreater(restored['version'], 7)
+        self.assertEqual(hashlib.sha256(target.read_bytes()).hexdigest(), original_hash)
+        self.assertEqual(backup_status(self.store)['folder'], str(folder.resolve()))
+        self.assertEqual(backup_status(self.store)['data_epoch'], 'synthetic-epoch')
+        with self.assertRaises(ValueError):
+            self.store.save_asset('legacy', {'name':'Stale'}, 7)
+
     def test_list_and_restore_saved_backups_rejects_traversal(self):
         import re
         from inspection_app.backups import create_backup

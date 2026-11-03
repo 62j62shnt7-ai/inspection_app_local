@@ -87,7 +87,32 @@ def create_backup(store, compress=False):
     return path
 
 
+@contextmanager
+def normalized_database(path):
+    """Normalize the supported four-column legacy layout on a disposable copy."""
+    with closing(sqlite3.connect(Path(path).resolve().as_uri() + '?mode=ro', uri=True)) as source:
+        columns = {row[1] for row in source.execute('PRAGMA table_info(assets)')}
+        if columns != {'id', 'name', 'family', 'version'}:
+            yield Path(path)
+            return
+        if source.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='schema_info'").fetchone():
+            raise ValueError('Backup is not a compatible legacy inspection database')
+        with tempfile.TemporaryDirectory() as tmp:
+            copy = Path(tmp)/'normalized.db'
+            with closing(sqlite3.connect(copy)) as target:
+                source.backup(target)
+                from .store import initialize_schema
+                initialize_schema(target)
+                target.commit()
+            yield copy
+
+
 def validate_database(store, path):
+    with normalized_database(path) as normalized:
+        return _validate_database(store, normalized)
+
+
+def _validate_database(store, path):
     with closing(sqlite3.connect(Path(path).resolve().as_uri() + '?mode=ro', uri=True)) as source:
         if source.execute('PRAGMA integrity_check').fetchone()[0]!='ok':
             raise ValueError('Backup failed integrity validation')
@@ -134,8 +159,11 @@ def restore_backup(store, path):
     path = Path(path).resolve()
     if not path.is_file() or path == Path(store.db_path).resolve():
         raise ValueError('Select an existing backup file')
-    with materialized_database(path) as database:
-        return _restore_database(store, database)
+    try:
+        with materialized_database(path) as database, normalized_database(database) as normalized:
+            return _restore_database(store, normalized)
+    except sqlite3.DatabaseError as exc:
+        raise ValueError('Backup is invalid or could not be restored') from exc
 
 
 def _restore_database(store, path):

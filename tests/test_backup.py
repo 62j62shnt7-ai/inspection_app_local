@@ -6,6 +6,27 @@ from inspection_app.store import Store
 from inspection_app.backups import create_backup
 
 class BackupTests(unittest.TestCase):
+    def test_generated_legacy_migration_backup_restores(self):
+        import hashlib
+        import sqlite3
+        from inspection_app.backups import list_backups, restore_saved_backup
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp)/'master.db'
+            with sqlite3.connect(path) as conn:
+                conn.execute('CREATE TABLE assets(id TEXT PRIMARY KEY,name TEXT NOT NULL,family TEXT NOT NULL,version INTEGER NOT NULL)')
+                conn.execute("INSERT INTO assets VALUES ('legacy','Original','Flowline',7)")
+            store = Store(path)
+            backup = next(x for x in list_backups(store) if 'migration' in x['filename'])
+            input_path = path.parent/'backups'/backup['filename']
+            before = hashlib.sha256(input_path.read_bytes()).hexdigest()
+            asset = store.get_asset('legacy')
+            store.save_asset('legacy', {'name':'Edited'}, asset['version'])
+            restore_saved_backup(store, backup['filename'])
+            self.assertEqual(store.get_asset('legacy')['name'], 'Original')
+            self.assertEqual(hashlib.sha256(input_path.read_bytes()).hexdigest(), before)
+            with self.assertRaises(ValueError):
+                store.save_asset('legacy', {'name':'stale'}, asset['version'])
+
     def test_migration_backups_are_listed_and_can_be_deleted(self):
         from inspection_app.backups import list_backups,delete_saved_backups
         with tempfile.TemporaryDirectory() as tmp:

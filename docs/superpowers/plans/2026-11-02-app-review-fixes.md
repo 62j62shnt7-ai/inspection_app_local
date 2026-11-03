@@ -61,14 +61,14 @@
 
 **Interfaces:** Preserve `restore_master_package(store, path)`, `restore_saved_backup(store, filename)` and `validate_database(store, path)`. Keep local settings/data epoch, non-reused edit versions, future-schema rejection and byte-for-byte input preservation.
 
-- [ ] Add `test_recovery_repairs_corrupt_existing_archive`: import synthetic workbook, export good package, corrupt canonical live archive. Assert verified originals restored, damaged bytes preserved separately, assets correct and safety protection returned.
-- [ ] Inject failure after archive replacement starts but before DB restore completes. Assert pre-restore DB/archive bytes remain recoverable, rollback/retry work, and existing valid protection is not replaced by partial output. Retain healthy-archive and invalid-package rejection cases.
-- [ ] Add `test_generated_legacy_migration_backup_restores`: create the supported four-column assets table, initialize Store, restore its listed migration backup through storage and saved-backup HTTP routes. Assert identity/content restored, input hash unchanged, old tokens stale and local epoch/settings retained.
-- [ ] Run recovery/backup tests and confirm failures show R5's checksum rejection and R6's missing `details` column before implementation.
-- [ ] Normalize supported legacy schemas on a disposable copy before semantic validation. Share Store's supported initialization; do not accept arbitrary missing columns or rewrite the backup.
-- [ ] Preflight the package and protect current DB/damaged archive bytes before replacement. Install only verified package bytes; track replaced and newly installed files for rollback. Keep symlink/path/checksum checks intact.
-- [ ] Run backup, compressed-backup, recovery, migration and in-process HTTP suites. Repeat valid round trips and corrupt/legacy failure paths with disposable inputs.
-- [ ] Update R5/R6 and recovery/acceptance docs, then commit this task.
+- [x] Add `test_recovery_repairs_corrupt_existing_archive`: import synthetic workbook, export good package, corrupt canonical live archive. Assert verified originals restored, damaged bytes preserved separately, assets correct and safety protection returned.
+- [x] Inject failure after archive replacement starts but before DB restore completes. Assert pre-restore DB/archive bytes remain recoverable, rollback/retry work, and existing valid protection is not replaced by partial output. Retain healthy-archive and invalid-package rejection cases.
+- [x] Add `test_generated_legacy_migration_backup_restores`: create the supported four-column assets table, initialize Store, restore its listed migration backup through storage and saved-backup HTTP routes. Assert identity/content restored, input hash unchanged, old tokens stale and local epoch/settings retained.
+- [x] Run recovery/backup tests and confirm failures show R5's checksum rejection and R6's missing `details` column before implementation.
+- [x] Normalize supported legacy schemas on a disposable copy before semantic validation. Share Store's supported initialization; do not accept arbitrary missing columns or rewrite the backup.
+- [x] Preflight the package and protect current DB/damaged archive bytes before replacement. Install only verified package bytes; track replaced and newly installed files for rollback. Keep symlink/path/checksum checks intact.
+- [x] Run backup, compressed-backup, recovery, migration and in-process HTTP suites. Repeat valid round trips and corrupt/legacy failure paths with disposable inputs.
+- [x] Update R5/R6 and recovery/acceptance docs, then commit this task.
 
 ## Task 4: Preserve valid workbook references and unassigned reviews — R7 and R8
 

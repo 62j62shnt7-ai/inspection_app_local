@@ -21,6 +21,86 @@ class RecoveryTests(unittest.TestCase):
             self.assertEqual(target.get_asset(a['id'])['name'],'Synthetic')
             self.assertEqual(len(list((root/'target'/'source-archives').glob('*.xlsx'))),1)
 
+    def test_recovery_repairs_corrupt_existing_archive(self):
+        from inspection_app.recovery import export_master_package, restore_master_package
+        from inspection_app.imports import preview_import, apply_import
+        from inspection_app.exports import export_workbook
+        from zipfile import ZipFile
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp); store = Store(root/'master.db')
+            asset = store.save_asset(None, {'name':'Synthetic','family':'Flowline'}, None)
+            workbook = export_workbook(store, root/'source.xlsx')
+            batch = preview_import(store, workbook); apply_import(store, batch['token'])
+            package = export_master_package(store, root/'good.zip')
+            archive = root/'source-archives'/(batch['digest']+'.xlsx')
+            original = archive.read_bytes(); damaged = b'damaged original bytes'
+            archive.write_bytes(damaged)
+            result = restore_master_package(store, package)
+            self.assertEqual(archive.read_bytes(), original)
+            self.assertEqual(store.get_asset(asset['id'])['name'], 'Synthetic')
+            with ZipFile(result['safety_package']) as protection:
+                self.assertIn(damaged, [protection.read(n) for n in protection.namelist() if n.startswith('source-archives/')])
+
+    def test_failed_restore_rolls_back_replaced_archive(self):
+        from unittest.mock import patch
+        from inspection_app.recovery import export_master_package, restore_master_package
+        from inspection_app.imports import preview_import, apply_import
+        from inspection_app.exports import export_workbook
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp); store = Store(root/'master.db')
+            asset = store.save_asset(None, {'name':'Before','family':'Flowline'}, None)
+            workbook = export_workbook(store, root/'source.xlsx')
+            batch = preview_import(store, workbook); apply_import(store, batch['token'])
+            package = export_master_package(store, root/'good.zip')
+            archive = root/'source-archives'/(batch['digest']+'.xlsx')
+            damaged = b'damaged bytes'; archive.write_bytes(damaged)
+            prior_database = Path(store.db_path).read_bytes()
+            with patch('inspection_app.recovery.restore_backup', side_effect=OSError('injected')):
+                with self.assertRaises(OSError):
+                    restore_master_package(store, package)
+            self.assertEqual(archive.read_bytes(), damaged)
+            self.assertEqual(Path(store.db_path).read_bytes(), prior_database)
+            self.assertEqual(store.get_asset(asset['id'])['name'], 'Before')
+            restore_master_package(store, package)
+            self.assertEqual(archive.read_bytes(), workbook.read_bytes())
+
+    def test_failed_safety_publication_leaves_existing_protection_and_archives(self):
+        from unittest.mock import patch
+        from inspection_app.recovery import export_master_package, restore_master_package
+        from inspection_app.imports import preview_import, apply_import
+        from inspection_app.exports import export_workbook
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp); store = Store(root/'master.db')
+            asset = store.save_asset(None, {'name':'Before','family':'Flowline'}, None)
+            workbook = export_workbook(store, root/'source.xlsx')
+            batch = preview_import(store, workbook); apply_import(store, batch['token'])
+            package = export_master_package(store, root/'good.zip')
+            copies = root/'recovery-copies'; copies.mkdir(exist_ok=True)
+            existing = copies/'inspection-recovery-20261102-123456-deadbeef.zip'
+            existing.write_bytes(b'previous protection')
+            archive = root/'source-archives'/(batch['digest']+'.xlsx')
+            archive.write_bytes(b'damaged')
+            with patch('inspection_app.recovery.export_master_package', side_effect=OSError('disk full')):
+                with self.assertRaises(OSError): restore_master_package(store, package)
+            self.assertEqual(existing.read_bytes(), b'previous protection')
+            self.assertEqual(archive.read_bytes(), b'damaged')
+            self.assertEqual(store.get_asset(asset['id'])['name'], 'Before')
+
+    def test_safety_package_name_collision_preserves_existing_copy(self):
+        from unittest.mock import patch
+        from datetime import datetime
+        from inspection_app.recovery import export_master_package, restore_master_package
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp); store = Store(root/'master.db')
+            package = export_master_package(store, root/'good.zip')
+            folder = root/'recovery-copies'; folder.mkdir()
+            name = 'inspection-recovery-'+datetime.now().strftime('%Y%m%d-%H%M%S')+'-deadbeef.zip'
+            existing = folder/name; existing.write_bytes(b'prior protection')
+            with patch('inspection_app.recovery.secrets.token_hex', side_effect=['deadbeef','abcdef12','12345678']):
+                result = restore_master_package(store, package)
+            self.assertEqual(existing.read_bytes(), b'prior protection')
+            self.assertNotEqual(Path(result['safety_package']), existing)
+
     def test_unavailable_independent_folder_reports_partial_failure(self):
         from inspection_app.recovery import configure_backup_folder, backup_status, automatic_backup
         with tempfile.TemporaryDirectory() as tmp:

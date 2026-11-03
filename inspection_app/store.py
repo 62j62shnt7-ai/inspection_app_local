@@ -24,18 +24,22 @@ def initialize_version_clock(conn):
         conn.execute(f'''CREATE TRIGGER IF NOT EXISTS version_clock_{event.lower()} AFTER {event} ON assets
                         BEGIN UPDATE version_clock SET value=MAX(value, NEW.version) WHERE id=1; END''')
 
+def initialize_schema(conn):
+    """Initialize supported asset layouts and apply the current schema."""
+    conn.execute('CREATE TABLE IF NOT EXISTS assets (id TEXT PRIMARY KEY, name TEXT NOT NULL, family TEXT NOT NULL, version INTEGER NOT NULL)')
+    columns = {row[1] for row in conn.execute('PRAGMA table_info(assets)')}
+    if 'details' not in columns:
+        conn.execute("ALTER TABLE assets ADD COLUMN details TEXT NOT NULL DEFAULT '{}'")
+    initialize_version_clock(conn)
+    migrate_database(conn)
+
 class Store:
     def __init__(self, db_path):
         self.db_path = str(db_path)
         self._lock = threading.RLock()
         backup_before_migration(self.db_path)
         with closing(sqlite3.connect(self.db_path)) as conn, conn:
-            conn.execute('CREATE TABLE IF NOT EXISTS assets (id TEXT PRIMARY KEY, name TEXT NOT NULL, family TEXT NOT NULL, version INTEGER NOT NULL)')
-            columns = {row[1] for row in conn.execute('PRAGMA table_info(assets)')}
-            if 'details' not in columns:
-                conn.execute("ALTER TABLE assets ADD COLUMN details TEXT NOT NULL DEFAULT '{}'")
-            initialize_version_clock(conn)
-            migrate_database(conn)
+            initialize_schema(conn)
         from .cleanup import recover_pending_cleanup
         recover_pending_cleanup(self)
 

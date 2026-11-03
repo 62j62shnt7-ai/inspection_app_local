@@ -157,27 +157,61 @@ def restore_master_package(store,path):
         database=Path(tmp)/'master.db';database.write_bytes(package.read('master.db'))
         from .backups import validate_database
         validate_database(store,database)
-        folder=Path(store.db_path).parent/'source-archives';folder.mkdir(exist_ok=True)
+        folder=Path(store.db_path).parent/'source-archives'
+        if folder.is_symlink(): raise ValueError('Source archive folder cannot be a symbolic link')
+        folder.mkdir(exist_ok=True)
+        # Preserve the pre-restore database and even damaged source bytes before
+        # replacing any archive. Publish to a unique path, never over a copy.
+        copies=Path(store.db_path).parent/'recovery-copies'
+        if copies.is_symlink(): raise ValueError('Recovery folder cannot be a symbolic link')
+        copies.mkdir(exist_ok=True)
+        for _ in range(100):
+            safety=copies/('inspection-recovery-'+datetime.now().strftime('%Y%m%d-%H%M%S')+'-'+secrets.token_hex(4)+'.zip')
+            try:
+                fd=os.open(safety,os.O_CREAT|os.O_EXCL|os.O_WRONLY,0o600)
+                os.close(fd)
+                break
+            except FileExistsError:
+                continue
+        else:
+            raise ValueError('Could not allocate a unique recovery protection name')
+        try:
+            export_master_package(store,safety,allow_missing_sources=True)
+        except BaseException:
+            safety.unlink(missing_ok=True)
+            raise
         installed=[]
+        replaced=[]
         try:
             for name in manifest['files']:
                 if not name.startswith('source-archives/'):continue
                 target=folder/Path(name).name
-                if target.exists():
-                    if hashlib.sha256(target.read_bytes()).hexdigest()!=manifest['files'][name]:raise ValueError('Existing archive checksum mismatch')
+                if target.is_symlink(): raise ValueError('Source archive cannot be a symbolic link')
+                if target.exists() and hashlib.sha256(target.read_bytes()).hexdigest()==manifest['files'][name]:
                     continue
                 fd,temporary=tempfile.mkstemp(dir=folder,suffix='.partial')
                 try:
                     with os.fdopen(fd,'wb') as stream:stream.write(package.read(name));stream.flush();os.fsync(stream.fileno())
-                    os.replace(temporary,target);installed.append(target)
+                    if target.exists():
+                        fd,old_name=tempfile.mkstemp(dir=folder,prefix='.restore-',suffix='.partial')
+                        old=Path(old_name)
+                        with os.fdopen(fd,'wb') as stream:
+                            stream.write(target.read_bytes());stream.flush();os.fsync(stream.fileno())
+                        replaced.append((target,old))
+                    else:
+                        installed.append(target)
+                    os.replace(temporary,target)
                 finally:Path(temporary).unlink(missing_ok=True)
             result=restore_backup(store,database)
         except Exception:
             for target in installed:target.unlink(missing_ok=True)
+            for target,old in replaced:os.replace(old,target)
             raise
+        else:
+            for _,old in replaced:old.unlink(missing_ok=True)
     if manifest.get('unavailable_sources') and not result.get('warning'):
         result['warning']='This package records '+str(len(manifest['unavailable_sources']))+' source archives as unavailable when it was created.'
-    return {**result,'archives_restored':len(installed)}
+    return {**result,'archives_restored':len(installed)+len(replaced),'safety_package':str(safety)}
 
 
 @serialized

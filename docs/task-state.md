@@ -51,3 +51,7 @@ Content-sensitive generated review ownership protects independently imported con
 ## Repair progress — Task 2 / R4
 
 Pending cleanup now finishes before backup-folder changes; locked cleanup leaves the old setting in place and can be retried. Tasks 3–7 remain open.
+
+## Repair progress — Task 3 / R5–R6
+
+Synthetic corrupt-archive recovery and generated legacy backup restore are covered through storage and HTTP, including safety-package collision and failure paths. Tasks 4–7 remain open.

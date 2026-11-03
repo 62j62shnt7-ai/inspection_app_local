@@ -342,7 +342,7 @@ function editorSaveHarness(){
  const requests=[];let resolve,reject;
  const ctx=vm.createContext({$:s=>nodes[s],editing:{name:'New',family:'Flowline'},editorDrafts:new Set(),editorDirty:true,editorGeneration:1,editorSavePending:false,
   prepareAssetForSave:asset=>({...asset}),api:(path,options)=>{requests.push({path,options});return new Promise((yes,no)=>{resolve=yes;reject=no})},
-  discardEditorDraft(){ctx.discarded=(ctx.discarded||0)+1},load:async()=>{},renderAssets(){},message(){}});
+  discardEditorDraft(){ctx.discarded=(ctx.discarded||0)+1},load:async()=>{},renderAssets(){},message(text){ctx.notice=text}});
  const line=source.split('\n').find(row=>row.startsWith("$('#form').onsubmit="));assert.ok(line);vm.runInContext(line,ctx);
  return {ctx,nodes,requests,resolve:()=>resolve({}),reject:()=>reject(Error('Offline'))};
 }
@@ -362,4 +362,9 @@ test('late editor save cannot discard or close a different editor',async()=>{
  const h=editorSaveHarness(),event={preventDefault(){}};
  const pending=h.nodes['#form'].onsubmit(event);h.ctx.editorGeneration++;h.ctx.editing={id:'other',name:'Other',family:'Flowline'};
  h.resolve();await pending;assert.equal(h.ctx.discarded,undefined);assert.equal(h.nodes['#editor'].closed,undefined);assert.equal(h.ctx.editorDirty,true);
+});
+
+test('successful save reports success even before the dialog close event runs',async()=>{
+ const h=editorSaveHarness(),pending=h.nodes['#form'].onsubmit({preventDefault(){}});
+ h.resolve();await pending;assert.match(h.ctx.notice,/Asset saved/);
 });

@@ -59,3 +59,7 @@ Synthetic corrupt-archive recovery and generated legacy backup restore are cover
 ## Repair progress — Task 4 / R7–R8
 
 Deleted and consolidated source references and unassigned reviews survive synthetic workbook round trips. Tasks 5–7 remain open.
+
+## Repair progress — Task 5 / R3
+
+Editor saves are guarded and bound to the initiating editor; synthetic delayed-response tests and disposable browser failure/double-click checks pass. Tasks 6–7 remain open.

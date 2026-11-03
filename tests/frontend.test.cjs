@@ -336,3 +336,30 @@ test('review comments mentioning month remain ordinary text controls',()=>{
  ctx.field(parent,'OSI: last inspection · No unambiguous month; original value retained for review.','Review',()=>{});
  assert.equal(parent.children[0].children[0].tagName,'input');
 });
+
+function editorSaveHarness(){
+ const nodes={'#form':{},'#save-asset':{disabled:false},'#fields':{inert:false},'#editor':{close(){this.closed=(this.closed||0)+1}},'#edit-error':{textContent:''},'#quality':{hidden:true}};
+ const requests=[];let resolve,reject;
+ const ctx=vm.createContext({$:s=>nodes[s],editing:{name:'New',family:'Flowline'},editorDrafts:new Set(),editorDirty:true,editorGeneration:1,editorSavePending:false,
+  prepareAssetForSave:asset=>({...asset}),api:(path,options)=>{requests.push({path,options});return new Promise((yes,no)=>{resolve=yes;reject=no})},
+  discardEditorDraft(){ctx.discarded=(ctx.discarded||0)+1},load:async()=>{},renderAssets(){},message(){}});
+ const line=source.split('\n').find(row=>row.startsWith("$('#form').onsubmit="));assert.ok(line);vm.runInContext(line,ctx);
+ return {ctx,nodes,requests,resolve:()=>resolve({}),reject:()=>reject(Error('Offline'))};
+}
+test('editor save ignores duplicate submissions while the request is pending',async()=>{
+ const h=editorSaveHarness(),event={preventDefault(){}};
+ const first=h.nodes['#form'].onsubmit(event),second=h.nodes['#form'].onsubmit(event);
+ assert.equal(h.requests.length,1);assert.equal(h.nodes['#save-asset'].disabled,true);
+ h.resolve();await Promise.all([first,second]);assert.equal(h.nodes['#save-asset'].disabled,false);assert.equal(h.nodes['#editor'].closed,1);
+});
+test('failed editor save retains the draft and permits retry',async()=>{
+ const h=editorSaveHarness(),event={preventDefault(){}};
+ const first=h.nodes['#form'].onsubmit(event);h.reject();await first;
+ assert.equal(h.ctx.discarded,undefined);assert.equal(h.nodes['#editor'].closed,undefined);assert.match(h.nodes['#edit-error'].textContent,/Offline/);assert.equal(h.nodes['#save-asset'].disabled,false);
+ const second=h.nodes['#form'].onsubmit(event);assert.equal(h.requests.length,2);h.resolve();await second;
+});
+test('late editor save cannot discard or close a different editor',async()=>{
+ const h=editorSaveHarness(),event={preventDefault(){}};
+ const pending=h.nodes['#form'].onsubmit(event);h.ctx.editorGeneration++;h.ctx.editing={id:'other',name:'Other',family:'Flowline'};
+ h.resolve();await pending;assert.equal(h.ctx.discarded,undefined);assert.equal(h.nodes['#editor'].closed,undefined);assert.equal(h.ctx.editorDirty,true);
+});

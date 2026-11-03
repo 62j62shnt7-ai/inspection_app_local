@@ -90,12 +90,12 @@
 
 **Interfaces:** Preserve create/update payloads. Acquire the guard synchronously, and bind completion to the initiating editor instance and draft rather than mutable global `editing`.
 
-- [ ] Add a deferred-request test submitting a new asset twice. Assert one POST/creation, with submission disabled until completion.
-- [ ] Add failure/retry and editor-switch tests. Failure retains the draft/releases the guard; old completion cannot close another editor or remove its draft.
-- [ ] Run `node --test tests/frontend.test.cjs`; confirm duplicate submission fails before implementation.
-- [ ] Add the guard, pending-control state and try/finally release with captured editor identity/generation.
-- [ ] Rerun frontend tests; check repeated Save clicks and recoverable save failure in a disposable browser.
-- [ ] Update R3 and commit the repair/tests/docs.
+- [x] Add a deferred-request test submitting a new asset twice. Assert one POST/creation, with submission disabled until completion.
+- [x] Add failure/retry and editor-switch tests. Failure retains the draft/releases the guard; old completion cannot close another editor or remove its draft.
+- [x] Run `node --test tests/frontend.test.cjs`; confirm duplicate submission fails before implementation.
+- [x] Add the guard, pending-control state and try/finally release with captured editor identity/generation.
+- [x] Rerun frontend tests; check repeated Save clicks and recoverable save failure in a disposable browser.
+- [x] Update R3 and commit the repair/tests/docs.
 
 ## Task 6: Bind previews to current controls and dialog — R2
 

@@ -36,6 +36,8 @@ Control changes invalidate the installed preview but not pending requests. A lat
 
 ### R3 · P2 — Repeated Save submissions create duplicate new assets
 
+**Repair:** An editor save acquires a synchronous guard, disables submission and editing during the request, and checks its originating editor before closing or discarding a draft. Deferred request and disposable browser failure/double-click checks pass.
+
 **Location:** `static/app.js:167`, editor submit handler.
 
 There is no in-flight guard or disabled submit state. Both pending submissions see an asset without an ID and POST a creation. Existing-asset version checks do not protect creation.

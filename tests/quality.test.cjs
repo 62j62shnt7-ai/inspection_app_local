@@ -108,3 +108,45 @@ test('year-only preview groups dates by year and shows retained problems',()=>{
  ctx.renderYearOnlyPreview({selected_count:0,date_count:0,groups:[],changes:[]});
  assert.equal(nodes['#year-only-apply'].disabled,true);
 });
+
+function previewHarness(){
+ const nodes={},requests=[];
+ function node(tag='div',text=''){return {tagName:tag,textContent:text,value:'',disabled:false,children:[],dataset:{},listeners:{},open:false,
+  addEventListener(type,fn){(this.listeners[type]??=[]).push(fn)},emit(type){for(const fn of this.listeners[type]||[])fn({preventDefault(){}})},
+  append(...items){this.children.push(...items);if(this.tagName==='select'&&!this.value&&items[0])this.value=items[0].value},replaceChildren(...items){this.children=items;if(this.tagName==='select')this.value=''},
+  showModal(){this.open=true},close(){this.open=false;this.emit('close')},click(){return this.onclick?.()},querySelectorAll(){return []}}}
+ const ctx=vm.createContext({$:s=>nodes[s]??=node(s.includes('survivor')?'select':'div'),el:(tag,text)=>node(tag,text??''),
+  selectedAssets:new Set(['a','b']),assets:[{id:'a',name:'A'},{id:'b',name:'B'},{id:'c',name:'C'}],confirm:()=>true,message(){},
+  verificationLabel:x=>x,verificationValue:x=>String(x),sessionStorage:{setItem(){}},load:async()=>{},renderAssets(){},
+  api:(path,options)=>new Promise((resolve,reject)=>requests.push({path,body:JSON.parse(options.body),resolve,reject}))});
+ vm.runInContext(source.slice(source.indexOf('function setupRecoveryAndBulk()'),source.indexOf("if(typeof document!=='undefined')setupRecoveryAndBulk();")),ctx);
+ vm.runInContext(source.slice(source.indexOf('function setupConsolidation()'),source.indexOf("if(typeof document!=='undefined')setupConsolidation();")),ctx);
+ ctx.setupRecoveryAndBulk();ctx.setupConsolidation();return {ctx,nodes,requests};
+}
+test('bulk preview rejects responses after field operation value or scope changes',async()=>{
+ const h=previewHarness(),n=h.nodes;n['#bulk-field'].value='plant';n['#bulk-operation'].value='set';n['#bulk-value'].value='North';n['#bulk-open'].click();
+ const pending=n['#bulk-preview'].click();n['#bulk-field'].value='field';n['#bulk-field'].emit('input');
+ h.requests[0].resolve({preview_id:'old',revision:1,selected_count:2,changes:[{asset_id:'a',before:'',after:'North'}]});await pending;
+ assert.equal(n['#bulk-apply'].disabled,true);assert.equal(n['#bulk-changes'].children.length,0);
+ for(const control of ['#bulk-operation','#bulk-value']){const p=n['#bulk-preview'].click();n[control].value+='changed';n[control].emit('input');h.requests.at(-1).resolve({preview_id:'stale',revision:1,selected_count:2,changes:[{}]});await p;assert.equal(n['#bulk-apply'].disabled,true)}
+ const p=n['#bulk-preview'].click();n['#bulk-close'].click();h.ctx.selectedAssets=new Set(['c']);n['#bulk-open'].click();h.requests.at(-1).resolve({preview_id:'scope-old',revision:1,selected_count:2,changes:[{}]});await p;assert.equal(n['#bulk-apply'].disabled,true);
+});
+test('bulk preview applies only the newest request and displays its operation',async()=>{
+ const h=previewHarness(),n=h.nodes;n['#bulk-field'].value='plant';n['#bulk-operation'].value='set';n['#bulk-value'].value='North';n['#bulk-open'].click();
+ const first=n['#bulk-preview'].click(),second=n['#bulk-preview'].click();
+ h.requests[1].resolve({preview_id:'new',revision:2,selected_count:2,changes:[{asset_id:'a',before:'x',after:'North'}]});await second;
+ h.requests[0].resolve({preview_id:'old',revision:1,selected_count:2,changes:[{asset_id:'a',before:'x',after:'wrong'}]});await first;
+ assert.match(n['#bulk-changes'].children[0].textContent,/plant/i);assert.match(n['#bulk-changes'].children[0].textContent,/set/i);
+ n['#bulk-reason'].value='Reviewed';const applying=n['#bulk-apply'].click();assert.equal(h.requests.at(-1).body.preview_id,'new');h.requests.at(-1).resolve({operation_id:'op'});await applying;
+});
+test('consolidation ignores obsolete survivor and dialog preview responses',async()=>{
+ const h=previewHarness(),n=h.nodes;n['#consolidate-open'].click();n['#consolidate-survivor'].value='a';
+ const first=n['#consolidate-preview'].click();n['#consolidate-survivor'].value='b';n['#consolidate-survivor'].onchange();
+ h.requests[0].resolve({preview_id:'old',revision:1,survivor:{id:'a'},duplicate:{id:'b'},conflicts:[]});await first;assert.equal(n['#consolidate-apply'].disabled,true);
+ const older=n['#consolidate-preview'].click(),newer=n['#consolidate-preview'].click();
+ h.requests[2].resolve({preview_id:'new',revision:2,survivor:{id:'b'},duplicate:{id:'a'},conflicts:[]});await newer;
+ h.requests[1].resolve({preview_id:'stale',revision:1,survivor:{id:'b'},duplicate:{id:'a'},conflicts:[]});await older;
+ assert.match(n['#consolidate-conflicts'].children[0].textContent,/Keep b; retire a/);
+ n['#consolidate-evidence'].value='Same';const apply=n['#consolidate-apply'].click();assert.equal(h.requests.at(-1).body.preview_id,'new');h.requests.at(-1).resolve({survivor_id:'b'});await apply;
+ h.ctx.selectedAssets=new Set(['a','b']);n['#consolidate-open'].click();const closing=n['#consolidate-preview'].click();n['#consolidate-close'].click();h.ctx.selectedAssets=new Set(['b','c']);n['#consolidate-open'].click();h.requests.at(-1).resolve({preview_id:'closed',revision:1,survivor:{id:'a'},duplicate:{id:'b'},conflicts:[]});await closing;assert.equal(n['#consolidate-apply'].disabled,true);
+});

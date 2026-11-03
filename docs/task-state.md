@@ -63,3 +63,7 @@ Deleted and consolidated source references and unassigned reviews survive synthe
 ## Repair progress — Task 5 / R3
 
 Editor saves are guarded and bound to the initiating editor; synthetic delayed-response tests and disposable browser failure/double-click checks pass. Tasks 6–7 remain open.
+
+## Repair progress — Task 6 / R2
+
+Bulk and consolidation previews reject stale responses and bind Apply to the reviewed scope and controls. Deferred-response tests and disposable browser preview/apply checks pass. Task 7 remains open.

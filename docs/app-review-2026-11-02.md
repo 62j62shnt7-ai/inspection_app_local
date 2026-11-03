@@ -26,6 +26,8 @@ The retained `review_summary_generated` boolean authorizes rebuilding the curren
 
 ### R2 · P2 — A late bulk preview applies a different field from the visible controls
 
+**Repair:** Bulk and consolidation previews are bound to the current dialog, scope and controls; stale or out-of-order responses cannot enable Apply. Synthetic deferred-response tests and live preview/apply checks cover Plant → set → Synthetic North and changing the consolidation survivor.
+
 **Location:** `static/quality.js:54–60`. Consolidation at `:65–69` has the same response-ownership pattern and needs equivalent tests.
 
 Control changes invalidate the installed preview but not pending requests. A late response installs the obsolete result and enables Apply. Backend revision checks cannot detect this browser-only change of intent.

@@ -103,12 +103,12 @@
 
 **Interfaces:** Preserve bulk/consolidation payloads and backend revision guards. Only the latest response for current scope/controls/dialog may install an applicable preview.
 
-- [ ] Add deferred bulk cases: Plant request then Field selection, operation/value changes, close/reopen with new scope and reversed preview responses. Assert no stale response enables Apply or supplies its token.
-- [ ] Add consolidation survivor/scope/dialog equivalents; displayed keep/retire IDs must match the applied preview.
-- [ ] Run `node --test tests/quality.test.cjs`; confirm Plant→Field fails before implementation.
-- [ ] Add generation/signature ownership checks and dialog invalidation. Show field/operation explicitly. Apply must use a matching current preview; keep backend guards.
-- [ ] Run all Node tests and check affected preview/apply flows in a disposable browser; capture the exact operation reviewed.
-- [ ] Update R2 and commit the repair/tests/docs.
+- [x] Add deferred bulk cases: Plant request then Field selection, operation/value changes, close/reopen with new scope and reversed preview responses. Assert no stale response enables Apply or supplies its token.
+- [x] Add consolidation survivor/scope/dialog equivalents; displayed keep/retire IDs must match the applied preview.
+- [x] Run `node --test tests/quality.test.cjs`; confirm Plant→Field fails before implementation.
+- [x] Add generation/signature ownership checks and dialog invalidation. Show field/operation explicitly. Apply must use a matching current preview; keep backend guards.
+- [x] Run all Node tests and check affected preview/apply flows in a disposable browser; capture the exact operation reviewed.
+- [x] Update R2 and commit the repair/tests/docs.
 
 ## Task 7: Send reset epochs with yearly binary exports — R9
 

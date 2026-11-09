@@ -1,5 +1,6 @@
 # Local operational data and original inspection records
 /data/
+/database-maintenance-backups/
 /reference/*.xlsx
 # Bundled platform interpreters remain local and are not source code
 /runtime/
@@ -9,3 +10,9 @@ __pycache__/
 .DS_Store
 # Implementation scratch ledger (not operational application state)
 /.superpowers/
+
+# Local archives and environment files
+/Archive.zip
+.env
+.env.*
+!.env.example

@@ -15,6 +15,29 @@ test('backup upload accepts compressed and existing SQLite formats',()=>{
  const accepted=input.match(/accept="([^"]+)"/)[1].split(',');
  for(const extension of ['.db','.sqlite','.sqlite3','.gz'])assert.ok(accepted.includes(extension),extension);
 });
+test('shared app shell places navigation in the app rail and preserves each view control',()=>{
+ const html=fs.readFileSync('static/index.html','utf8'),rail=html.match(/<aside id="app-rail"[^>]*>([\s\S]*?)<\/aside>/);
+ assert.ok(rail,'expected the app rail');assert.match(rail[1],/<nav aria-label="Main navigation">/);
+ for(const view of ['dashboard','assets','quality','yearly','reconciliation','import']){
+  assert.equal((rail[1].match(new RegExp(`data-view="${view}"`,'g'))||[]).length,1,`${view} navigation`);
+  assert.equal((html.match(new RegExp(`<section id="${view}"`,'g'))||[]).length,1,`${view} section`);
+ }
+ for(const id of ['theme-toggle','backup'])assert.equal((html.match(new RegExp(`id="${id}"`,'g'))||[]).length,1,`${id} control`);
+});
+test('dashboard and register expose grouped work areas without changing dynamic targets',()=>{
+ const html=fs.readFileSync('static/index.html','utf8');
+ for(const id of ['cards','aging-panel','dashboard-list','sheet-summary','search','due-filter','asset-rows'])assert.equal((html.match(new RegExp(`id="${id}"`,'g'))||[]).length,1,`${id} target`);
+ assert.match(html,/<section id="dashboard-summary"[^>]*aria-labelledby="dashboard-summary-title"/);
+ assert.match(html,/<section id="dashboard-work"[^>]*aria-labelledby="dashboard-work-title"/);
+ assert.match(html,/<section id="dashboard-summary" class="dashboard-summary"/);
+ assert.match(html,/<section id="dashboard-work" class="dashboard-work"/);
+ assert.match(html,/<div id="register-filters" class="filters" role="search" aria-label="Filter the master register">/);
+});
+test('narrow register table overflow stays within the table scroller',()=>{
+ const css=fs.readFileSync('static/style.css','utf8');
+ assert.match(css,/html,body\{[^}]*overflow-x:clip/);
+ assert.match(css,/\.table-wrap\{[^}]*overflow:auto/);
+});
 test('main served script can render an import preview without loading a second script',()=>{
  const nodes={};function node(tag){return {tagName:tag,content:'test-token',children:[],value:'',dataset:{},attributes:{},classList:{toggle(){},add(){},remove(){}},addEventListener(){},setAttribute(k,v){this.attributes[k]=v},removeAttribute(k){delete this.attributes[k]},setCustomValidity(v){this.validationMessage=v},checkValidity(){return !this.validationMessage},focus(){},append(...xs){this.children.push(...xs)},replaceChildren(...xs){this.children=xs}}}
  const document={querySelector:s=>nodes[s]??=node('div'),querySelectorAll:()=>[],createElement:node};

@@ -54,6 +54,10 @@ def inspect_workbook(path):
         book = openpyxl.load_workbook(source, read_only=True, data_only=True)
         try:
             names = book.sheetnames
+            if 'Export System' in names:
+                raise ValueError('Use Preview Excel changes or Recover from Excel for a full editable database workbook.')
+            if 'Report Metadata' in names:
+                raise ValueError('Report-only Excel exports cannot be imported as database edits.')
             clean = 'Assets' in names or 'Inspection Plan' in names
             if not clean and not any(role(name) != 'unsupported' for name in names):
                 raise ValueError('Unrecognized workbook layout. Choose the original Master Inspection Plan or a cleaned export.')

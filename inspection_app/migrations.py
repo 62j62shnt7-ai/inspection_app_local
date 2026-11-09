@@ -1,6 +1,6 @@
 """Idempotent schema upgrades; called within the initialization transaction."""
 
-SCHEMA_VERSION = 10
+SCHEMA_VERSION = 11
 
 
 def migrate_database(conn):
@@ -41,6 +41,9 @@ def migrate_database(conn):
         for token,raw in conn.execute("SELECT token,contents FROM import_batches WHERE state='committed'").fetchall():
             batch=json.loads(raw)
             conn.executemany('INSERT OR IGNORE INTO import_batch_assets VALUES (?,?)',[(token,a['asset_id']) for a in batch.get('data',{}).get('Assets',[])])
+    if not existing or existing[0] < 11:
+        from .payloads import migrate_payloads
+        migrate_payloads(conn)
     conn.execute('INSERT OR REPLACE INTO schema_info VALUES (1, ?)', (SCHEMA_VERSION,))
 
 

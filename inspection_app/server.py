@@ -12,9 +12,12 @@ from .mutations import clear_master
 from .cleanup import inventory, preview_cleanup, apply_cleanup, set_coverage_dismissed, data_epoch
 import json
 import io
+import re
 import secrets
 import sqlite3
+import threading
 import tempfile
+import time
 from contextlib import closing
 from datetime import date
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -30,6 +33,52 @@ STATIC = Path(__file__).resolve().parent.parent / 'static'
 
 def create_server(store, port=0):
     token = secrets.token_urlsafe(32)
+    export_jobs={}
+    export_jobs_lock=threading.Lock()
+
+    def reap_export_jobs():
+        expired=[];now=time.monotonic()
+        for job_id,job in list(export_jobs.items()):
+            if job['state'] in ('ready','error') and now-job['created']>3600:
+                expired.append(job_id)
+        for job_id in expired:
+            job=export_jobs.pop(job_id)
+            if job.get('directory'):job['directory'].cleanup()
+
+    def update_export_job(job_id,**changes):
+        with export_jobs_lock:
+            job=export_jobs.get(job_id)
+            if job is None:return
+            if 'progress' in changes:changes['progress']=max(job['progress'],int(changes['progress']))
+            job.update(changes)
+
+    def run_excel_export(job_id,output):
+        update_export_job(job_id,state='running',stage='Reading the database',progress=1)
+        try:
+            from .excel_io import export_full_workbook
+            export_full_workbook(store,output,progress=lambda value,stage:update_export_job(job_id,progress=value,stage=stage))
+            update_export_job(job_id,state='ready',progress=100,stage='Workbook ready')
+        except Exception as exc:
+            with export_jobs_lock:
+                job=export_jobs.get(job_id)
+                if job:
+                    directory=job.get('directory')
+                    if directory:directory.cleanup();job['directory']=None
+                    job.update(state='error',stage='Export failed',error=str(exc))
+
+    def start_excel_export():
+        with export_jobs_lock:
+            reap_export_jobs()
+            if any(job['state'] in ('queued','running') for job in export_jobs.values()):
+                raise ValueError('A full database export is already in progress.')
+            directory=tempfile.TemporaryDirectory(prefix='inspection-excel-export-')
+            output=Path(directory.name)/'inspection-editable-database.xlsx'
+            job_id=secrets.token_urlsafe(24)
+            export_jobs[job_id]={'state':'queued','progress':0,'stage':'Waiting to read the database','error':None,'created':time.monotonic(),'directory':directory,'output':output}
+        thread=threading.Thread(target=run_excel_export,args=(job_id,output),daemon=True,name='excel-full-export')
+        thread.start()
+        return job_id
+
     class Handler(BaseHTTPRequestHandler):
         def respond(self, status, payload, content_type='application/json'):
             if getattr(self, '_defer_response', False):
@@ -78,8 +127,32 @@ def create_server(store, port=0):
                 if path in ('/', '/index.html'):
                     html = (STATIC / 'index.html').read_text(encoding='utf-8').replace('__APP_TOKEN__',token).replace('__DATA_EPOCH__',data_epoch(store))
                     return self.respond(200,html.encode(),'text/html; charset=utf-8')
-                if path in ('/app.js','/style.css','/reconciliation.js','/quality.js','/cleanup.js'):
+                if path in ('/app.js','/style.css','/reconciliation.js','/quality.js','/cleanup.js','/excel.js'):
                     return self.respond(200,(STATIC/path[1:]).read_bytes(),'text/javascript; charset=utf-8' if path.endswith('.js') else 'text/css; charset=utf-8')
+                if path.startswith('/api/excel/reconciled/'):
+                    download_id=path.removeprefix('/api/excel/reconciled/')
+                    if not re.fullmatch(r'reconciled-[a-f0-9]{24}',download_id):raise ValueError('Invalid workbook download')
+                    output=Path(store.db_path).parent/'excel-reconciled'/(download_id+'.xlsx')
+                    if not output.is_file():raise ValueError('Reconciled workbook unavailable; export the current editable database again')
+                    return self.respond(200,output.read_bytes(),'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+                if path.startswith('/api/excel/export-progress/'):
+                    job_id=path.removeprefix('/api/excel/export-progress/')
+                    if not re.fullmatch(r'[A-Za-z0-9_-]{32}',job_id):raise ValueError('Invalid export job')
+                    with export_jobs_lock:
+                        reap_export_jobs();job=export_jobs.get(job_id)
+                        if not job:return self.respond(404,{'error':'Export job expired or unavailable.'})
+                        result={key:job[key] for key in ('state','progress','stage','error')}
+                    return self.respond(200,result)
+                if path.startswith('/api/excel/export-download/'):
+                    job_id=path.removeprefix('/api/excel/export-download/')
+                    if not re.fullmatch(r'[A-Za-z0-9_-]{32}',job_id):raise ValueError('Invalid export job')
+                    with export_jobs_lock:
+                        job=export_jobs.get(job_id)
+                        if not job or job['state']!='ready':raise ValueError('Excel workbook is not ready yet.')
+                        output=job['output'];body=output.read_bytes()
+                        export_jobs.pop(job_id)
+                        job['directory'].cleanup()
+                    return self.respond(200,body,'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
                 if path == '/api/export':
                     with tempfile.TemporaryDirectory() as directory:
                         output = Path(directory) / 'inspection-plan.xlsx'
@@ -90,7 +163,6 @@ def create_server(store, port=0):
                         output=export_master_package(store,Path(directory)/'recovery.zip')
                         return self.respond(200,output.read_bytes(),'application/zip')
                 if path.startswith('/api/source/'):
-                    import re
                     digest=path.removeprefix('/api/source/')
                     if not re.fullmatch(r'[a-f0-9]{64}',digest):raise ValueError('Invalid source reference')
                     source=Path(store.db_path).parent/'source-archives'/(digest+'.xlsx')
@@ -145,7 +217,7 @@ def create_server(store, port=0):
                     raise ValueError('Working data was reset. Reload this page before making changes.')
                 path=urlparse(self.path).path
                 length = int(self.headers.get('Content-Length','0'))
-                limit=256*1024*1024 if path in ('/api/restore','/api/recovery/restore') else 20*1024*1024
+                limit=256*1024*1024 if path in ('/api/restore','/api/recovery/restore','/api/excel/preview','/api/excel/recovery-preview') else 20*1024*1024
                 if length < 1 or length > limit: return self.respond(400,{'error':'Invalid request size'})
                 body = self.rfile.read(length); path = urlparse(self.path).path
                 if path == '/api/restore':
@@ -166,6 +238,13 @@ def create_server(store, port=0):
                     try: result=restore_master_package(store,temp_path)
                     finally: temp_path.unlink(missing_ok=True)
                     return self.respond(200,result)
+                if path in ('/api/excel/preview','/api/excel/recovery-preview'):
+                    from .excel_io import preview_sync,preview_recovery
+                    with tempfile.NamedTemporaryFile(suffix='.xlsx',delete=False) as temp:
+                        temp.write(body);temp_path=Path(temp.name)
+                    try:result=(preview_sync if path=='/api/excel/preview' else preview_recovery)(store,temp_path)
+                    finally:temp_path.unlink(missing_ok=True)
+                    return self.respond(200,result)
                 if path in ('/api/import/preview', '/api/import/inspect'):
                     with tempfile.NamedTemporaryFile(suffix='.xlsx',delete=False) as temp:
                         temp.write(body); temp_path = Path(temp.name)
@@ -184,6 +263,23 @@ def create_server(store, port=0):
                     finally: temp_path.unlink(missing_ok=True)
                     return self.respond(200,result)
                 data = json.loads(body)
+                if path == '/api/excel/export':
+                    from .annual_excel import export_annual_workbook,export_filtered_workbook,export_management_workbook
+                    mode=data.get('mode');options=data.get('options',{})
+                    if not isinstance(options,dict):raise ValueError('Invalid export options')
+                    generators={'annual':export_annual_workbook,'filtered':export_filtered_workbook,'summary':export_management_workbook}
+                    if mode!='full' and mode not in generators:raise ValueError('Unknown Excel export mode')
+                    if mode=='full':return self.respond(202,{'job_id':start_excel_export()})
+                    with tempfile.TemporaryDirectory() as directory:
+                        output=Path(directory)/'inspection.xlsx'
+                        generators[mode](store,output,options)
+                        return self.respond(200,output.read_bytes(),'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+                if path == '/api/excel/apply':
+                    from .excel_io import apply_sync
+                    return self.respond(200,apply_sync(store,data.get('token'),data.get('resolutions')))
+                if path == '/api/excel/recovery-apply':
+                    from .excel_io import apply_recovery
+                    return self.respond(200,apply_recovery(store,data.get('token'),data.get('confirmed')))
                 if path == '/api/data/preview': return self.respond(200,preview_cleanup(store,data))
                 if path == '/api/data/delete': return self.respond(200,apply_cleanup(store,data.get('preview_id'),data.get('confirmation')))
                 if path == '/api/data/coverage': return self.respond(200,set_coverage_dismissed(store,data.get('batch_id'),data.get('dismissed')))

@@ -1,3 +1,4 @@
+from . import payloads
 from .import_batches import archive_source, invalidate_batches, persist_batch, load_batch
 from .mutations import next_revision, record_event
 from contextlib import closing
@@ -121,7 +122,7 @@ def _stage_preview(store, data, metadata, errors, digest, raw_data=None, resolut
     with closing(sqlite3.connect(store.db_path)) as conn, conn:
         old_rows = {r[0]: r for r in conn.execute('SELECT id,name,family,details FROM assets')}
         old_ids = set(old_rows)
-        baselines={asset_id:json.loads(raw) for asset_id,raw in conn.execute('SELECT asset_id,contents FROM source_baselines')}
+        baselines={asset_id:payloads.loads(raw) for asset_id,raw in conn.execute('SELECT asset_id,contents FROM source_baselines')}
     incoming_inspections = defaultdict(dict)
     for row in data['Inspection Plan']:
         incoming_inspections[row.get('asset_id')][row.get('inspection_type')] = row
@@ -247,7 +248,7 @@ def apply_import(store, token, mode='merge', acknowledge_coverage=False):
             asset_id = asset['asset_id']
             old = conn.execute('SELECT name,family,details FROM assets WHERE id=?', (asset_id,)).fetchone()
             source_view={**asset,**{key:rows.get(asset_id,[]) for key,rows in children.items() if key!='source_cells'}}
-            conn.execute('INSERT OR REPLACE INTO source_baselines VALUES (?,?)',(asset_id,json.dumps(source_view,default=str,ensure_ascii=False)))
+            conn.execute('INSERT OR REPLACE INTO source_baselines VALUES (?,?)',(asset_id,payloads.dumps(source_view,default=str,ensure_ascii=False)))
             details = {k:v for k,v in asset.items() if k not in ('asset_id','asset_description','asset_family')}
             details.update({key: rows.get(asset_id, []) for key,rows in children.items()})
             name = asset.get('asset_description') or '(unnamed asset)'
@@ -270,7 +271,7 @@ def apply_import(store, token, mode='merge', acknowledge_coverage=False):
             conn.execute('INSERT INTO assets (id,name,family,version,details) VALUES (?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,family=excluded.family,version=excluded.version,details=excluded.details', (asset_id,name,family,revision,json.dumps(details,default=str,ensure_ascii=False)))
         for sheet in ('Field Map','Source Cells','Review Items') + ((DECISION_SHEET,) if DECISION_SHEET in data else ()):
             prior = conn.execute('SELECT contents FROM import_reference WHERE name=?', (sheet,)).fetchone()
-            previous = json.loads(prior[0]) if prior else []
+            previous = payloads.loads(prior[0]) if prior else []
             if staged.get('format') == 'legacy':
                 # Replace unassigned evidence only for selected tabs; excluded
                 # tabs and evidence belonging to retained assets stay intact.
@@ -286,10 +287,10 @@ def apply_import(store, token, mode='merge', acknowledge_coverage=False):
             combined = previous + data[sheet]
             # Avoid accumulating duplicate unassigned evidence on re-import.
             unique = {json.dumps(row, sort_keys=True, default=str, ensure_ascii=False): row for row in combined}
-            conn.execute('INSERT OR REPLACE INTO import_reference VALUES (?,?)', (sheet,json.dumps(list(unique.values()),default=str,ensure_ascii=False)))
+            conn.execute('INSERT OR REPLACE INTO import_reference VALUES (?,?)', (sheet,payloads.dumps(list(unique.values()),default=str,ensure_ascii=False)))
         conn.executemany('INSERT OR IGNORE INTO import_batch_assets VALUES (?,?)',[(token,a['asset_id']) for a in data['Assets']])
         staged['coverage_acknowledged']=acknowledge_coverage is True
-        conn.execute("UPDATE import_batches SET state='committed',contents=? WHERE token=?", (json.dumps(staged,default=str,ensure_ascii=False),token))
+        conn.execute("UPDATE import_batches SET state='committed',contents=? WHERE token=?", (payloads.dumps(staged,default=str,ensure_ascii=False),token))
     getattr(store, '_previews', {}).pop(token, None)
     return {'imported': len(data['Assets']), 'backup': str(backup)}
 

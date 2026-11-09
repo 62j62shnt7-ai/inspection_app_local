@@ -1,3 +1,4 @@
+from inspection_app import payloads
 from contextlib import closing
 """Original-layout imports use tiny hand-checked workbooks, never operational data."""
 from datetime import datetime
@@ -63,7 +64,7 @@ class LegacyImportTests(unittest.TestCase):
         self.assertEqual(asset['inspections'][0]['next_inspection_month'], '2034-01')
         self.assertEqual(asset['notes'][0]['note_text'], 'Keep this note')
         with closing(sqlite3.connect(self.store.db_path)) as conn, conn:
-            refs = json.loads(conn.execute("SELECT contents FROM import_reference WHERE name='Source Cells'").fetchone()[0])
+            refs = payloads.loads(conn.execute("SELECT contents FROM import_reference WHERE name='Source Cells'").fetchone()[0])
         self.assertTrue(refs)
         self.assertEqual({row['source_sheet'] for row in refs}, {'FLs'})
 
@@ -244,7 +245,7 @@ class LegacyImportTests(unittest.TestCase):
         self.assertEqual(preview['counts']['Assets'], 1)
         apply_import(self.store, preview['token'])
         with closing(sqlite3.connect(self.store.db_path)) as conn, conn:
-            refs = json.loads(conn.execute("SELECT contents FROM import_reference WHERE name='Source Cells'").fetchone()[0])
+            refs = payloads.loads(conn.execute("SELECT contents FROM import_reference WHERE name='Source Cells'").fetchone()[0])
         section = next(r for r in refs if r['source_cell'] == 'G2')
         self.assertIsNone(section['asset_id'])
 

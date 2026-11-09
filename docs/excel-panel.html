@@ -1,0 +1,37 @@
+<section class="management-panel" id="excel-panel" aria-labelledby="excel-title">
+<h2 id="excel-title">Export to Excel</h2>
+<label>Workbook type<select id="excel-mode"><option value="full">Full Database Workbook · editable</option><option value="annual">Yearly Inspection Plan · report only</option><option value="filtered">Filtered Asset Register · report only</option><option value="summary">Management Summary · report only</option></select></label>
+<p id="excel-mode-help"></p>
+<div id="excel-report-options" hidden>
+<div class="filters">
+<label>Planning year<input id="excel-year" type="number" min="1" max="9999" step="1"></label>
+<label>Inspection type<select id="excel-inspection_type"><option value="">OSI and Internal</option><option>OSI</option><option>Internal</option></select></label>
+<label>Area / location<select id="excel-area"><option value="">All</option></select></label>
+<label>Asset family<select id="excel-family"><option value="">All</option></select></label>
+<label>Source sheet<select id="excel-source_sheet"><option value="">All</option></select></label>
+<label>Tag, equipment number or description<input id="excel-tag" type="search"></label>
+<label>Reporting reference month<input id="excel-reference_month" type="text" placeholder="YYYY-MM" pattern="[0-9]{4}-(0[1-9]|1[0-2])"></label>
+</div>
+<label><input id="excel-include_overdue" type="checkbox" checked> Include overdue inspections separately</label>
+<label><input id="excel-include_unscheduled" type="checkbox" checked> Include unscheduled and review records</label>
+<label><input id="excel-include_summary" type="checkbox" checked> Include monthly summary</label>
+<label><input id="excel-monthly_sheets" type="checkbox"> Annual plan + January–December worksheets</label>
+</div>
+<button id="excel-export" type="button">Export Editable Database</button>
+<p id="excel-status" role="status" aria-live="polite"></p>
+<hr>
+<h3>Synchronize an edited database workbook</h3>
+<p>Preview changes from a full editable database workbook exported by this database. Missing rows are retained. Resolve conflicts explicitly, then download the reconciled workbook for your next edit cycle. Importing is not verification.</p>
+<label>Edited workbook<input id="excel-sync-file" type="file" accept=".xlsx"></label>
+<button id="excel-preview-button" type="button" class="secondary">Preview Excel changes</button>
+<div id="excel-preview" aria-live="polite"></div>
+<button id="excel-apply" type="button" disabled>Apply reviewed Excel changes</button>
+<hr>
+<h3>Recover from Excel</h3>
+<p>Restore supported business data from a full editable database workbook. Recovery validates a temporary database first. Native recovery ZIPs also preserve original source workbook files and should be retained separately.</p>
+<label>Recovery workbook<input id="excel-recover-file" type="file" accept=".xlsx"></label>
+<button id="excel-recover-preview" type="button" class="secondary">Validate Excel recovery</button>
+<div id="excel-recovery-preview" aria-live="polite"></div>
+<label><input id="excel-recover-confirm" type="checkbox"> I reviewed the recovery counts and confirm replacing the current business database after a backup.</label>
+<button id="excel-recover-apply" type="button" disabled>Activate validated Excel recovery</button>
+</section>

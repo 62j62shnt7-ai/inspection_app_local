@@ -1,3 +1,4 @@
+from inspection_app import payloads
 """Explicit identity review never changes source files or live databases."""
 from contextlib import closing
 import json
@@ -94,7 +95,7 @@ class ImportResolutionTests(unittest.TestCase):
         apply_import(self.store, reviewed['token'])
         self.assertEqual(self.store.get_asset(existing['id'])['name'], 'Existing retained')
         with closing(sqlite3.connect(self.store.db_path)) as conn:
-            evidence = json.loads(conn.execute("SELECT contents FROM import_reference WHERE name='Source Cells'").fetchone()[0])
+            evidence = payloads.loads(conn.execute("SELECT contents FROM import_reference WHERE name='Source Cells'").fetchone()[0])
         skipped = [r for r in evidence if r['source_sheet'] == 'FLs' and r['source_row'] == 5]
         self.assertTrue(skipped)
         self.assertTrue(all(r['asset_id'] is None for r in skipped))

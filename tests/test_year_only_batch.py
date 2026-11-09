@@ -1,3 +1,4 @@
+from inspection_app import payloads
 from contextlib import closing
 import json
 import sqlite3
@@ -76,7 +77,7 @@ class YearOnlyBatchTests(unittest.TestCase):
             self.assertEqual(conn.execute('SELECT count(*) FROM field_verifications').fetchone()[0],0)
             row=conn.execute("SELECT before_json,after_json,reason FROM correction_events WHERE origin='bulk'").fetchone()
             self.assertIsNotNone(row)
-            self.assertEqual(json.loads(row[1])['inspections'][0]['last_inspection_month'],'2020-01')
+            self.assertEqual(payloads.loads(row[1])['inspections'][0]['last_inspection_month'],'2020-01')
             self.assertIn('January',row[2])
 
     def test_revert_refuses_to_overwrite_a_later_edit(self):

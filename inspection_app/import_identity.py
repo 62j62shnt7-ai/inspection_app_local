@@ -1,4 +1,5 @@
 """Conservative original-plan matching and explicitly reviewed identity choices."""
+from . import payloads
 from collections import defaultdict
 from contextlib import closing
 import hashlib
@@ -50,7 +51,7 @@ def saved_decisions(store):
     with closing(sqlite3.connect(store.db_path)) as conn:
         exists = conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='import_reference'").fetchone()
         row = conn.execute('SELECT contents FROM import_reference WHERE name=?', (DECISION_SHEET,)).fetchone() if exists else None
-    rows = json.loads(row[0]) if row else []
+    rows = payloads.loads(row[0]) if row else []
     validate_decisions(rows)
     return {r['row_key']: r for r in rows}
 
@@ -66,7 +67,7 @@ def match_legacy(store, data, resolutions=None):
     """Resolve on server-owned raw tables. Choices are persisted only on apply."""
     with closing(sqlite3.connect(store.db_path)) as conn:
         prior = [{'id': r[0], 'name': r[1], 'family': r[2], **json.loads(r[3])} for r in conn.execute('SELECT id,name,family,details FROM assets')]
-        baselines={asset_id:json.loads(raw) for asset_id,raw in conn.execute('SELECT asset_id,contents FROM source_baselines')}
+        baselines={asset_id:payloads.loads(raw) for asset_id,raw in conn.execute('SELECT asset_id,contents FROM source_baselines')}
         aliases=dict(conn.execute('SELECT retired_id,survivor_id FROM asset_aliases'))
     prior_by_id = {a['id']: a for a in prior}
     strong_index, exact_index, epf_index = defaultdict(set), defaultdict(set), defaultdict(set)

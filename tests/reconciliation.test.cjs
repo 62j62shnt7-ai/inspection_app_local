@@ -10,7 +10,7 @@ test('opening a reconciliation row supports a remarks text area',()=>{
  const nodes={};let opened=false;
  function element(tag,text){let n={tagName:tag,textContent:text,value:'',children:[],setAttribute(){},scrollIntoView(){},append(...xs){this.children.push(...xs)},replaceChildren(...xs){this.children=xs},showModal(){opened=true}};Object.defineProperty(n,'firstChild',{get(){return this.children[0]}});Object.defineProperty(n,'type',{set(v){if(tag==='textarea')throw TypeError('textarea type is read-only')},get(){return ''}});return n}
  const row={row:3,identifier:'V1',description:'Vessel',scope:'OSI',inspection_type:'OSI',candidates:[],changes:{}};
- const ctx=vm.createContext({assets:[],reconRows:[row],el:element,$:selector=>nodes[selector]??=(element('div')),reconConflict:()=>false,reconConflictReasons:()=>[],reconComparison:()=>({status:'incomplete',details:[]}),reconServiceComparison:()=>({status:'unavailable',sources:[],master:''}),reconRemarkComparison:()=>({status:'unavailable',incoming:[],master:[]}),active:()=>true,searchReconAssets:()=>[],assetDisplayName:a=>a.name,applicable:()=>true,localStorage:{setItem(){}},reconAliases:{},reconKey:()=>'',message(){},persistReconciliation(){},renderRecon(){}});
+ const ctx=vm.createContext({assets:[],reconRows:[row],el:element,$:selector=>nodes[selector]??=(element('div')),reconConflict:()=>false,reconConflictReasons:()=>[],reconComparison:()=>({status:'incomplete',details:[]}),reconMasterPreview:()=>({changes:{}}),reconServiceComparison:()=>({status:'unavailable',sources:[],master:''}),reconRemarkComparison:()=>({status:'unavailable',incoming:[],master:[]}),active:()=>true,searchReconAssets:()=>[],assetDisplayName:a=>a.name,applicable:()=>true,localStorage:{setItem(){}},reconAliases:{},reconKey:()=>'',message(){},persistReconciliation(){},renderRecon(){}});
  vm.runInContext(fn('openRecon'),ctx);ctx.openRecon(row);assert.equal(opened,true)
 });
 test('asset search matches multiple terms across identifiers and ignores archived assets',()=>{
@@ -24,7 +24,7 @@ test('changing the inspection type and closing review does not alter a saved dec
  const nodes={};let controls=[];
  function element(tag,text){const n={tagName:tag,textContent:text,value:'',children:[],setAttribute(){},scrollIntoView(){},append(...xs){this.children.push(...xs)},replaceChildren(...xs){this.children=xs},showModal(){},close(){}};Object.defineProperty(n,'type',{set(){}});controls.push(n);return n}
  const row={row:3,identifier:'V1',description:'Vessel',scope:'OSI',inspection_type:'OSI',candidates:[],changes:{remark:'keep'},confirmed:true};
- const ctx=vm.createContext({assets:[],reconRows:[row],el:element,$:selector=>nodes[selector]??=element('div'),reconConflict:()=>false,reconConflictReasons:()=>[],reconComparison:()=>({status:'incomplete',details:[]}),reconServiceComparison:()=>({status:'unavailable',sources:[],master:''}),reconRemarkComparison:()=>({status:'unavailable',incoming:[],master:[]}),active:()=>true,searchReconAssets:()=>[],assetDisplayName:a=>a.name,applicable:()=>true,localStorage:{setItem(){}},reconAliases:{},reconKey:()=>'',message(){},persistReconciliation(){},renderRecon(){}});
+ const ctx=vm.createContext({assets:[],reconRows:[row],el:element,$:selector=>nodes[selector]??=element('div'),reconConflict:()=>false,reconConflictReasons:()=>[],reconComparison:()=>({status:'incomplete',details:[]}),reconMasterPreview:()=>({changes:{}}),reconServiceComparison:()=>({status:'unavailable',sources:[],master:''}),reconRemarkComparison:()=>({status:'unavailable',incoming:[],master:[]}),active:()=>true,searchReconAssets:()=>[],assetDisplayName:a=>a.name,applicable:()=>true,localStorage:{setItem(){}},reconAliases:{},reconKey:()=>'',message(){},persistReconciliation(){},renderRecon(){}});
  vm.runInContext(fn('openRecon'),ctx);ctx.openRecon(row);let scope=controls.find(n=>n.tagName==='select');scope.value='Internal';scope.onchange();
  assert.equal(row.inspection_type,'OSI');assert.equal(row.confirmed,true);assert.equal(row.changes.remark,'keep');
 });
@@ -45,11 +45,11 @@ test('choosing a different search result and confirming saves the new match',()=
  const nodes={},controls=[];function element(tag,text){const n={tagName:tag,textContent:text,value:'',children:[],setAttribute(){},scrollIntoView(){},append(...xs){this.children.push(...xs)},replaceChildren(...xs){this.children=xs},showModal(){},close(){}};Object.defineProperty(n,'type',{set(){}});controls.push(n);return n}
  const assets=[{id:'1',name:'First',family:'Vessel',version:1,inspections:[]},{id:'2',name:'Second',family:'Vessel',version:3,inspections:[]}];
  const row={row:3,identifier:'V1',description:'Vessel',scope:'OSI',inspection_type:'OSI',chosen:'1',confirmed:true,candidates:[],changes:{}};
- const ctx=vm.createContext({assets,reconRows:[row],el:element,$:s=>nodes[s]??=element('div'),reconConflict:()=>false,reconConflictReasons:()=>[],reconComparison:()=>({status:'incomplete',details:[]}),reconServiceComparison:()=>({status:'unavailable',sources:[],master:''}),reconRemarkComparison:()=>({status:'unavailable',incoming:[],master:[]}),active:()=>true,searchReconAssets:()=>[assets[1]],assetDisplayName:a=>a.name,applicable:()=>true,localStorage:{setItem(){}},reconAliases:{},reconKey:()=>'',message(){},persistReconciliation(){},renderRecon(){}});
+ const ctx=vm.createContext({assets,reconRows:[row],el:element,$:s=>nodes[s]??=element('div'),reconConflict:()=>false,reconConflictReasons:()=>[],reconComparison:()=>({status:'incomplete',details:[]}),reconMasterPreview:()=>({changes:{}}),reconServiceComparison:()=>({status:'unavailable',sources:[],master:''}),reconRemarkComparison:()=>({status:'unavailable',incoming:[],master:[]}),active:()=>true,searchReconAssets:()=>[assets[1]],assetDisplayName:a=>a.name,applicable:()=>true,localStorage:{setItem(){}},reconAliases:{},reconKey:()=>'',message(){},persistReconciliation(){},renderRecon(){}});
  vm.runInContext(fn('openRecon'),ctx);ctx.openRecon(row);const input=controls.find(n=>n.placeholder==='Search by name, tag, asset number or location');input.value='Second';input.oninput();controls.find(n=>n.tagName==='button'&&n.children.some(c=>c.textContent==='Second')).onclick();controls.find(n=>n.textContent==='Confirm match and selected fields').onclick();assert.equal(row.chosen,'2');assert.equal(row.version,3);
 });
 test('conflict explanation identifies the other row and updates for the proposed asset',()=>{
- const a={row:20,identifier:'VEGE-NA-001',description:'Receiver',inspection_type:'Internal',chosen:'1',confirmed:true,candidates:[]};
+ const a={completion_status:'done',row:20,identifier:'VEGE-NA-001',description:'Receiver',inspection_type:'Internal',chosen:'1',confirmed:true,candidates:[]};
  const b={row:34,identifier:'VEGE-NA-001',description:'Air receiver',inspection_type:'Internal',chosen:'1',confirmed:false,candidates:[],planned_month:'2025-12'};
  const ctx=vm.createContext({reconRows:[a,b],assets:[{id:'1',family:'Vessel'},{id:'2',family:'Vessel'}]});vm.runInContext(fn('reconConflictReasons'),ctx);
  assert.match(ctx.reconConflictReasons(a,'1','Internal').join(' '),/row 34/i);
@@ -117,7 +117,7 @@ test('final review applies only the checked rows and leaves the rest staged',()=
 });
 test('removing a workbook clears its saved review without touching the master',()=>{
  const data=new Map([['inspection-reconciliation-v1','saved']]),nodes={};let renders=0;
- const ctx=vm.createContext({reconRows:[{row:4}],reconWorkbookName:'plan.xlsx',reconApplyChoices:new Map(),reconAliases:{},onlyConfirmedRecon:true,localStorage:{removeItem:k=>data.delete(k),setItem:(k,v)=>data.set(k,v)},confirm:()=>true,reconKey:()=>'',syncConfirmedReconHighlights(){},$:s=>nodes[s]??={value:'',hidden:false,disabled:false,textContent:'',replaceChildren(){}},message(){},renderAssets(){renders++}});
+ const ctx=vm.createContext({reconRows:[{row:4}],reconWorkbookName:'plan.xlsx',reconApplyChoices:new Map(),reconAliases:{},onlyConfirmedRecon:true,localStorage:{removeItem:k=>data.delete(k),setItem:(k,v)=>data.set(k,v)},confirm:()=>true,reconKey:()=>'',syncConfirmedReconHighlights(){},updateReconBatchActions(){},$:s=>nodes[s]??={value:'',hidden:false,disabled:false,textContent:'',replaceChildren(){}},message(){},renderAssets(){renders++}});
  vm.runInContext(fn('removeReconciliation'),ctx);ctx.removeReconciliation();assert.equal(data.has('inspection-reconciliation-v1'),false);assert.equal(ctx.reconRows.length,0);assert.equal(nodes['#recon-work'].hidden,true);assert.equal(nodes['#recon-review'].disabled,true);
 });
 test('cancelling workbook removal preserves the saved review',()=>{
@@ -153,4 +153,162 @@ test('downloaded review CSV keeps multiline selected remarks and escapes formula
  vm.runInContext(source.slice(source.indexOf("$('#recon-export').onclick="),source.indexOf('\n\nfunction completeReconUpdates')),ctx);
  nodes['#recon-export'].onclick();assert.equal(clicked,true);const csv=await downloaded.text();
  assert.ok(csv.includes('"Selected remark"'));assert.ok(csv.includes('"Manual, ""note""\nsecond line"'));assert.ok(csv.includes('"\'=SUM(A1)"'));
+});
+
+test('batch date proposals skip old, invalid, ambiguous and planned-only results',()=>{
+ const asset={id:'1',version:12,family:'Vessel',inspections:[{inspection_type:'OSI',applicable:'Yes',last_inspection_month:'2025-02',next_inspection_month:'2026-02'}]};
+ const row={completion_status:'done',chosen:'1',inspection_type:'OSI',last_month:'2026-09',next_month:'2028-09',candidates:[{evidence:'Exact tag'}]};
+ const ctx=vm.createContext({assets:[asset],reconRows:[row],active:()=>true,applicable:i=>i.applicable==='Yes'});
+ for(const name of ['reconAsset','reconConflict','reconRemarkComparison','reconServiceValue','reconServiceComparison','reconMasterPreview','reconBatchProposal','reconStatus'])vm.runInContext(fn(name),ctx);
+ assert.equal(ctx.reconBatchProposal(row).status,'update_available');
+ assert.deepEqual(JSON.parse(JSON.stringify(ctx.reconBatchProposal(row).fields)),{last_inspection_month:'2026-09',next_inspection_month:'2028-09'});
+ row.last_month='2024-01';assert.equal(ctx.reconBatchProposal(row).status,'up_to_date');
+ row.last_month=null;row.planned_month='2026-09';assert.equal(ctx.reconBatchProposal(row).status,'needs_review');
+ row.last_month='2026-09';row.next_original='2028';row.next_month=null;assert.equal(ctx.reconBatchProposal(row).status,'needs_review');
+ row.next_original='';row.next_month='2028-09';row.ambiguous=true;assert.equal(ctx.reconBatchProposal(row).status,'needs_review');
+ row.ambiguous=false;row.last_month='2025-02';row.next_month='2026-02';assert.equal(ctx.reconStatus(row),'up_to_date');
+ row.last_month='2026-09';row.next_month='2026-01';assert.equal(ctx.reconBatchProposal(row).status,'needs_review');
+});
+test('batch completion uses authoritative revisions for multiple assets',()=>{
+ const rows=[{chosen:'a',version:4,changes:{last_inspection_month:'2026-09'}},{chosen:'b',version:8,changes:{last_inspection_month:'2026-09'}}];
+ const ctx=vm.createContext({});vm.runInContext(fn('completeReconUpdates'),ctx);ctx.completeReconUpdates(rows.map(row=>({row})),{a:19,b:20});
+ assert.equal(rows[0].version,19);assert.equal(rows[1].version,20);
+});
+test('preparing a batch respects visible rows and preserves manual proposals',()=>{
+ const ready={chosen:'a'},hidden={chosen:'b'},manual={chosen:'c',confirmed:true,changes:{remark:'keep'}};
+ let saved=0,rendered=0;
+ const ctx=vm.createContext({reconVisible:()=>[ready,manual],reconBatchProposal:()=>({status:'update_available',fields:{last_inspection_month:'2026-09'}}),reconAsset:()=>({version:42}),persistReconciliation:()=>saved++,renderRecon:()=>rendered++,message:()=>{}});
+ vm.runInContext(fn('prepareReconBatch'),ctx);ctx.prepareReconBatch();
+ assert.equal(ready.confirmed,true);assert.equal(ready.version,42);assert.equal(ready.changes.last_inspection_month,'2026-09');assert.equal(hidden.confirmed,undefined);assert.equal(manual.changes.remark,'keep');assert.equal(saved,1);assert.equal(rendered,1);
+});
+test('dates require completion in incoming workbook, not confirmation of the match',()=>{
+ const asset={id:'a',version:1,family:'Vessel',inspections:[{inspection_type:'OSI',applicable:'Yes',last_inspection_month:'2020-01'}]};
+ const row={chosen:'a',inspection_type:'OSI',last_month:'2026-09',next_month:null,candidates:[{evidence:'Exact tag'}],confirmed:true,version:1};
+ const ctx=vm.createContext({assets:[asset],reconRows:[row],active:()=>true,applicable:()=>true});
+ for(const name of ['reconAsset','reconConflict','reconRemarkComparison','reconServiceValue','reconServiceComparison','reconMasterPreview','reconBatchProposal'])vm.runInContext(fn(name),ctx);
+ assert.equal(ctx.reconBatchProposal(row).status,'needs_review');
+ row.completion_status='not_done';assert.equal(ctx.reconBatchProposal(row).status,'not_done');
+ row.completion_status='done';assert.equal(ctx.reconBatchProposal(row).status,'update_available');
+ row.changes={last_inspection_month:'2026-09'};row.completion_status='not_done';assert.equal(ctx.reconConflict(row),true);
+});
+
+test('master preview highlights incoming differences without altering row decisions or asset values',()=>{
+ const asset={id:'a',service_status_original:'In service',inspections:[{inspection_type:'OSI',last_inspection_month:'2020-01',next_inspection_month:'2027-01'},{inspection_type:'Internal',last_inspection_month:'2026-09'}]};
+ const row={row:5,chosen:'a',completion_status:'not_done',last_month:'2026-09',next_month:'2027-01',confirmed:false,changes:{}};
+ const ctx=vm.createContext({});vm.runInContext(fn('reconServiceValue'),ctx);vm.runInContext(fn('reconRemarkComparison'),ctx);vm.runInContext(fn('reconMasterPreview'),ctx);
+ const preview=ctx.reconMasterPreview(row,asset,'OSI');
+ assert.equal(preview.previewOnly,true);assert.deepEqual(JSON.parse(JSON.stringify(preview.changes)),{last_inspection_month:'2026-09'});
+ assert.equal(asset.inspections[0].last_inspection_month,'2020-01');assert.equal(row.confirmed,false);assert.deepEqual(row.changes,{});
+ row.changes={next_inspection_month:'2028-01',remark:'Selected remark'};
+ const selected=ctx.reconMasterPreview(row,asset,'Internal');assert.equal(selected.previewOnly,false);assert.equal(selected.inspection_type,'Internal');assert.equal(selected.changes.next_inspection_month,'2028-01');assert.equal(selected.changes.remark,'Selected remark');
+});
+test('batch toolbar counts visible eligibility separately from all prepared rows',()=>{
+ const nodes={'#recon-status':{value:''},'#recon-prepare-batch':{},'#recon-review':{},'#recon-batch-status':{}};
+ const ctx=vm.createContext({reconRows:[{},{}],$:id=>nodes[id],reconVisible:()=>[{confirmed:false},{confirmed:true,changes:{remark:'kept'}}],reconBatchProposal:()=>({status:'update_available'}),selectedReconUpdates:()=>[{},{}]});
+ vm.runInContext(fn('updateReconBatchActions'),ctx);ctx.updateReconBatchActions();
+ assert.equal(nodes['#recon-prepare-batch'].disabled,false);assert.equal(nodes['#recon-review'].disabled,false);assert.match(nodes['#recon-batch-status'].textContent,/1 eligible.*2 prepared/);
+ nodes['#recon-status'].value='missing';ctx.updateReconBatchActions();assert.equal(nodes['#recon-prepare-batch'].disabled,true);
+});
+
+test('master preview includes service and both remarks even when only a date was selected',()=>{
+ const asset={service_status_original:'In service',inspections:[{inspection_type:'OSI',last_inspection_month:'2020-01'}],notes:[{note_text:'Existing remark'}]};
+ const row={last_month:'2026-09',service_status:'Out of service',remarks:'New scope remark',final_remarks:'New final remark',changes:{last_inspection_month:'2026-09'}};
+ const ctx=vm.createContext({});for(const name of ['reconServiceValue','reconRemarkComparison','reconMasterPreview'])vm.runInContext(fn(name),ctx);
+ const preview=ctx.reconMasterPreview(row,asset,'OSI');
+ assert.equal(preview.changes.service_status_original,'Out of service');
+ assert.deepEqual(JSON.parse(JSON.stringify(preview.remarkPreviews)),[{text:'New scope remark',selected:false},{text:'New final remark',selected:false}]);
+ assert.deepEqual(JSON.parse(JSON.stringify(preview.selectedFields)),['last_inspection_month']);
+ assert.equal(row.changes.service_status_original,undefined);assert.equal(asset.service_status_original,'In service');
+ row.changes.remark='Manually selected note';const selected=ctx.reconMasterPreview(row,asset,'OSI');
+ assert.equal(selected.remarkPreviews[0].text,'Manually selected note');assert.equal(selected.remarkPreviews[0].selected,true);assert.equal(selected.remarkPreviews.length,3);
+});
+test('master preview omits identical remarks and statuses and avoids guessing conflicting service statuses',()=>{
+ const asset={service_status_original:'OOS',notes:[{note_text:' Existing   remark '}]};
+ const ctx=vm.createContext({});for(const name of ['reconServiceValue','reconRemarkComparison','reconMasterPreview'])vm.runInContext(fn(name),ctx);
+ let preview=ctx.reconMasterPreview({progress:'Out of service',remarks:'existing remark',final_remarks:'EXISTING REMARK'},asset,'OSI');
+ assert.deepEqual(Object.keys(preview.changes),[]);assert.equal(preview.remarkPreviews.length,0);
+ preview=ctx.reconMasterPreview({progress:'In service',report:'Out of service'},asset,'OSI');assert.equal(preview.changes.service_status_original,undefined);
+ preview=ctx.reconMasterPreview({service_status:'Maintenance'},{service_status_original:'Maintenance'},'OSI');assert.equal(preview.changes.service_status_original,undefined);
+});
+
+test('a row leaves active reconciliation only after every source proposal is applied',()=>{
+ const row={row:2,chosen:'a',completion_status:'done',inspection_type:'OSI',last_month:'2026-09',next_month:'2028-09',service_status:'Out of service',remarks:'Scope detail',final_remarks:'Final detail',changes:{last_inspection_month:'2026-09'}};
+ const asset={id:'a',inspections:[{inspection_type:'OSI',last_inspection_month:'2026-09',next_inspection_month:'2028-09'}],service_status_original:'In service',notes:[]};
+ const ctx=vm.createContext({});for(const name of ['reconServiceValue','reconRemarkComparison','reconMasterPreview','completeReconUpdates','reconRowFinished'])vm.runInContext(fn(name),ctx);
+ assert.equal(ctx.reconRowFinished(row,asset),false);
+ ctx.completeReconUpdates([{row}],{a:20});assert.equal(ctx.reconRowFinished(row,asset),false);
+ asset.service_status_original='Out of service';asset.notes=[{note_text:'Scope detail'}];assert.equal(ctx.reconRowFinished(row,asset),false);
+ asset.notes.push({note_text:'Final detail'});assert.equal(ctx.reconRowFinished(row,asset),true);
+ row.completion_status='not_done';assert.equal(ctx.reconRowFinished(row,asset),false);
+});
+test('completed rows stay available in history while disappearing from default filters',()=>{
+ const nodes={};for(const key of ['search','status','type','year','category','comparison','service-comparison','remark-comparison','sheet','family'])nodes['#recon-'+key]={value:''};
+ const completed={completed:true,candidates:[]},pending={completed:false,candidates:[]};
+ const ctx=vm.createContext({reconRows:[completed,pending],$:id=>nodes[id],reconAsset:()=>null,reconStatus:row=>row.completed?'completed':'not_done'});
+ vm.runInContext(fn('reconVisible'),ctx);assert.equal(ctx.reconVisible().length,1);assert.equal(ctx.reconVisible()[0],pending);
+ nodes['#recon-status'].value='completed';assert.equal(ctx.reconVisible().length,1);assert.equal(ctx.reconVisible()[0],completed);
+});
+
+test('identical incoming remarks do not need completion evidence or manual confirmation',()=>{
+ const asset={id:'a',family:'Vessel',inspections:[{inspection_type:'OSI',applicable:'Yes',last_inspection_month:'2026-09',next_inspection_month:'2028-09'}],notes:[{note_text:'Existing remark'}]};
+ const row={chosen:'a',inspection_type:'OSI',candidates:[{evidence:'Exact tag'}],next_month:null,last_month:null,remarks:' existing   REMARK ',completion_status:'unknown'};
+ const ctx=vm.createContext({assets:[asset],reconRows:[row],active:()=>true,applicable:()=>true});
+ for(const name of ['reconAsset','reconConflict','reconServiceValue','reconServiceComparison','reconRemarkComparison','reconMasterPreview','reconBatchProposal','reconStatus','reconNeedsAttention'])vm.runInContext(fn(name),ctx);
+ assert.equal(ctx.reconStatus(row),'up_to_date');assert.equal(ctx.reconNeedsAttention(row),false);
+ row.last_month='2026-09';row.next_month='2028-09';assert.equal(ctx.reconStatus(row),'up_to_date');assert.equal(ctx.reconNeedsAttention(row),false);
+ row.last_month='2026-10';assert.notEqual(ctx.reconStatus(row),'up_to_date');
+});
+test('whole matching remarks compare consistently whether stored combined or separately',()=>{
+ const ctx=vm.createContext({});for(const name of ['reconServiceValue','reconRemarkComparison','reconMasterPreview'])vm.runInContext(fn(name),ctx);
+ const row={remarks:'Scope detail',final_remarks:'Final detail'};
+ const asset={notes:[{note_text:'Scope detail\nFinal detail'}]};
+ assert.equal(ctx.reconRemarkComparison(row,asset).status,'agree');assert.equal(ctx.reconMasterPreview(row,asset,'OSI').remarkPreviews.length,0);
+ assert.equal(ctx.reconRemarkComparison({remarks:'Scope detail\nFinal detail'},{notes:[{note_text:'Scope detail'},{note_text:'Final detail'}]}).status,'agree');
+ assert.equal(ctx.reconRemarkComparison({remarks:'Scope'},{notes:[{note_text:'Scope detail'}]}).status,'different');
+});
+
+test('unchanged selected values clear themselves without masking stale real changes',()=>{
+ const row={chosen:'a',version:1,confirmed:true,inspection_type:'OSI',completion_status:'done',last_month:'2026-09',next_month:null,remarks:'Scope detail',final_remarks:'Final detail',candidates:[{evidence:'Exact tag'}],changes:{last_inspection_month:'2026-09',remark:'Scope detail\nFinal detail',service_status_original:' MAINTENANCE '}};
+ const asset={id:'a',version:9,family:'Vessel',service_status_original:'maintenance',inspections:[{inspection_type:'OSI',applicable:'Yes',last_inspection_month:'2026-09'}],notes:[{note_text:'Scope detail'},{note_text:'Final detail'}]};
+ const ctx=vm.createContext({reconRows:[row],assets:[asset],active:()=>true,applicable:()=>true});
+ for(const name of ['reconAsset','reconConflict','reconServiceValue','reconRemarkComparison','reconServiceComparison','reconMasterPreview','pruneReconNoops','reconBatchProposal','reconStatus','reconNeedsAttention'])vm.runInContext(fn(name),ctx);
+ ctx.pruneReconNoops(row,asset);assert.deepEqual(Object.keys(row.changes),[]);assert.equal(ctx.reconStatus(row),'up_to_date');assert.equal(ctx.reconNeedsAttention(row),false);assert.equal(asset.version,9);
+ row.changes={last_inspection_month:'2026-10'};ctx.pruneReconNoops(row,asset);assert.equal(ctx.reconStatus(row),'conflict');assert.equal(ctx.reconNeedsAttention(row),true);
+});
+test('blank next due and matching opaque service status do not create review work',()=>{
+ const asset={id:'a',family:'Vessel',service_status_original:' Maintenance ',inspections:[{inspection_type:'OSI',applicable:'Yes',last_inspection_month:'2026-09'}],notes:[]};
+ const row={chosen:'a',inspection_type:'OSI',candidates:[{evidence:'Exact tag'}],last_month:'2026-09',next_month:null,service_status:'maintenance',completion_status:'unknown'};
+ const ctx=vm.createContext({assets:[asset],reconRows:[row],active:()=>true,applicable:()=>true});
+ for(const name of ['reconAsset','reconConflict','reconServiceValue','reconRemarkComparison','reconServiceComparison','reconMasterPreview','reconBatchProposal','reconStatus','reconNeedsAttention'])vm.runInContext(fn(name),ctx);
+ assert.equal(ctx.reconStatus(row),'up_to_date');assert.equal(ctx.reconNeedsAttention(row),false);
+ row.last_original='not a date';row.last_month=null;assert.equal(ctx.reconStatus(row),'needs_review');
+});
+test('matching remarks alone need no applicable inspection until date changes are proposed',()=>{
+ const asset={id:'a',family:'Vessel',inspections:[],notes:[{note_text:'Already recorded'}]};
+ const row={chosen:'a',inspection_type:'OSI',candidates:[{evidence:'Exact tag'}],last_month:null,next_month:null,remarks:'Already recorded'};
+ const ctx=vm.createContext({reconRows:[row],assets:[asset],active:()=>true,applicable:()=>false});
+ for(const name of ['reconAsset','reconConflict','reconServiceValue','reconRemarkComparison','reconServiceComparison','reconMasterPreview','reconBatchProposal','reconStatus'])vm.runInContext(fn(name),ctx);
+ assert.equal(ctx.reconStatus(row),'up_to_date');row.last_month='2026-09';assert.equal(ctx.reconStatus(row),'needs_review');
+});
+test('retained master paragraphs match without discarding later history or matching partial sentences',()=>{
+ const ctx=vm.createContext({});vm.runInContext(fn('reconRemarkComparison'),ctx);
+ const asset={notes:[{note_text:'Insulation in bad condition.\nCheck nozzles for CUI.\n\nLater inspection history and notes.'}]};
+ assert.equal(ctx.reconRemarkComparison({remarks:'Insulation in bad condition.\nCheck nozzles for CUI'},asset).status,'agree');
+ assert.equal(ctx.reconRemarkComparison({remarks:'Insulation in bad condition'},asset).status,'different');
+});
+test('newer master dates produce no downgrade proposal, including saved selections',()=>{
+ const asset={id:'a',family:'Vessel',inspections:[{inspection_type:'OSI',applicable:'Yes',last_inspection_month:'2026-04',next_inspection_month:'2036-03'}],notes:[]};
+ const row={chosen:'a',inspection_type:'OSI',last_month:'2021-04',next_month:'2030-04',candidates:[{evidence:'Exact tag'}],completion_status:'done',changes:{last_inspection_month:'2021-04',next_inspection_month:'2030-04'}};
+ const ctx=vm.createContext({assets:[asset],reconRows:[row],active:()=>true,applicable:()=>true});
+ for(const name of ['reconAsset','reconConflict','reconServiceValue','reconRemarkComparison','reconServiceComparison','reconMasterPreview','pruneReconNoops','reconBatchProposal','reconStatus','reconNeedsAttention'])vm.runInContext(fn(name),ctx);
+ assert.equal(Object.keys(ctx.reconMasterPreview(row,asset,'OSI').changes).length,0);ctx.pruneReconNoops(row,asset);assert.equal(Object.keys(row.changes).length,0);assert.equal(ctx.reconStatus(row),'up_to_date');assert.equal(ctx.reconNeedsAttention(row),false);
+ row.last_date_role='historical';row.last_month=null;row.last_original='2016';row.next_month=null;assert.equal(ctx.reconStatus(row),'up_to_date');
+});
+test('duplicate source rows already reflected in the master require no duplicate review',()=>{
+ const asset={id:'a',family:'Vessel',inspections:[{inspection_type:'OSI',applicable:'Yes',last_inspection_month:'2026-04'}]};
+ const row={identifier:'V1',description:'Vessel',chosen:'a',inspection_type:'OSI',last_month:'2021-04',next_month:null,candidates:[{evidence:'Exact tag'}],completion_status:'done'};
+ const duplicate={...row};const ctx=vm.createContext({reconRows:[row,duplicate],assets:[asset],active:()=>true,applicable:()=>true});
+ for(const name of ['reconAsset','reconServiceValue','reconRemarkComparison','reconServiceComparison','reconMasterPreview','reconConflict','reconBatchProposal','reconStatus','reconNeedsAttention'])vm.runInContext(fn(name),ctx);
+ assert.equal(ctx.reconStatus(row),'up_to_date');assert.equal(ctx.reconNeedsAttention(row),false);
+ duplicate.last_month='2027-04';assert.equal(ctx.reconStatus(duplicate),'conflict');
 });

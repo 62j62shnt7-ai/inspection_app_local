@@ -3,6 +3,7 @@
 Callers own the SQLite transaction: tokens and events roll back with records.
 """
 import json
+from . import payloads
 from datetime import datetime, timezone
 
 
@@ -24,8 +25,8 @@ def _append_event(conn, asset_id, before, after, origin, revision, actor='Owner'
         VALUES (?,?,?,?,?,?,?,?)''',
         (asset_id, revision, origin, actor, reason,
          datetime.now(timezone.utc).isoformat(),
-         json.dumps(before, ensure_ascii=False, default=str),
-         json.dumps(after, ensure_ascii=False, default=str)))
+         payloads.dumps(before, ensure_ascii=False, default=str),
+         payloads.dumps(after, ensure_ascii=False, default=str)))
 
 
 def clear_master(store, conn):

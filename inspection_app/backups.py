@@ -1,3 +1,4 @@
+from . import payloads
 from contextlib import closing, contextmanager
 from datetime import datetime
 from pathlib import Path
@@ -134,15 +135,16 @@ def _validate_database(store, path):
         json_tables={'import_reference':('contents',list),'master_snapshots':('contents',dict),'import_batches':('contents',dict),'bulk_operations':('contents',dict),'consolidation_previews':('contents',dict),'backup_settings':('contents',dict),'source_baselines':('contents',dict)}
         for table,(column,shape) in json_tables.items():
             if table not in tables:continue
+            decode = payloads.loads if column in payloads.COLUMNS.get(table, ()) else json.loads
             for (raw,) in source.execute(f'SELECT {column} FROM {table}'):
-                try:value=json.loads(raw)
+                try:value=decode(raw)
                 except (ValueError,TypeError) as exc:raise ValueError('Backup contains invalid metadata JSON in '+table) from exc
                 if not isinstance(value,shape):raise ValueError('Backup contains invalid metadata shape in '+table)
         if 'correction_events' in tables:
             for revision,before,after in source.execute('SELECT revision,before_json,after_json FROM correction_events'):
                 if not isinstance(revision,int) or revision<1:raise ValueError('Backup contains invalid correction revision')
                 for raw in (before,after):
-                    try:value=json.loads(raw)
+                    try:value=payloads.loads(raw)
                     except (ValueError,TypeError) as exc:raise ValueError('Backup contains invalid correction metadata JSON') from exc
                     if value is not None and not isinstance(value,dict):raise ValueError('Backup contains invalid correction metadata')
         if 'asset_aliases' in tables:

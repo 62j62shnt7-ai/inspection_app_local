@@ -1,3 +1,4 @@
+from inspection_app import payloads
 from contextlib import closing
 import json
 from pathlib import Path
@@ -29,8 +30,8 @@ class ClearTests(unittest.TestCase):
                 self.assertEqual(conn.execute('SELECT count(*) FROM assets').fetchone()[0], 0)
                 self.assertEqual(conn.execute('SELECT * FROM correction_events ORDER BY event_id LIMIT ?', (len(old_events),)).fetchall(), old_events)
                 cleared = conn.execute("SELECT asset_id,before_json,after_json,revision FROM correction_events WHERE origin='clear'").fetchall()
-                self.assertEqual({asset_id:json.loads(raw) for asset_id,raw,_,_ in cleared}, before)
-                self.assertTrue(all(json.loads(after) is None and rev==revision for _,_,after,rev in cleared))
+                self.assertEqual({asset_id:payloads.loads(raw) for asset_id,raw,_,_ in cleared}, before)
+                self.assertTrue(all(payloads.loads(after) is None and rev==revision for _,_,after,rev in cleared))
                 self.assertEqual(conn.execute('SELECT evidence,active FROM field_verifications').fetchall(), [('Recorded evidence',0)])
                 self.assertEqual(dict(conn.execute('SELECT issue_id,state FROM quality_issues')), {'accepted':'superseded','resolved':'superseded','open':'open','historical':'resolved'})
                 self.assertEqual(conn.execute('SELECT contents FROM master_snapshots').fetchall(), [('{}',)])

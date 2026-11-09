@@ -1,8 +1,8 @@
 """Durable local staging, immutable content-addressed source evidence."""
+from . import payloads
 from contextlib import closing
 from pathlib import Path
 import hashlib
-import json
 import os
 import sqlite3
 import tempfile
@@ -38,14 +38,14 @@ def persist_batch(store,token,staged):
     with closing(sqlite3.connect(store.db_path)) as conn,conn:
         conn.execute("UPDATE import_batches SET state='cancelled' WHERE state='staged'")
         conn.execute('INSERT INTO import_batches(token,state,digest,base_revision,contents) VALUES (?,?,?,?,?)',
-                     (token,'staged',staged['digest'],staged['revision'],json.dumps(staged,ensure_ascii=False,default=str)))
+                     (token,'staged',staged['digest'],staged['revision'],payloads.dumps(staged,ensure_ascii=False,default=str)))
 
 
 def load_batch(store,token):
     with closing(sqlite3.connect(store.db_path)) as conn:
         row=conn.execute("SELECT contents FROM import_batches WHERE token=? AND state='staged'",(token,)).fetchone()
     if not row:return None
-    result=json.loads(row[0])
+    result=payloads.loads(row[0])
     archive=Path(store.db_path).parent/'source-archives'/(result['digest']+'.xlsx')
     if not archive.exists() or hashlib.sha256(archive.read_bytes()).hexdigest()!=result['digest']:
         raise ValueError('Source archive missing or damaged. Preview the workbook again.')
@@ -55,7 +55,7 @@ def load_batch(store,token):
 def list_staged_batches(store):
     with closing(sqlite3.connect(store.db_path)) as conn:
         rows=conn.execute("SELECT token,digest,contents FROM import_batches WHERE state='staged'").fetchall()
-    return [{'token':token,'digest':digest,'format':json.loads(contents).get('format'),'assets':len(json.loads(contents)['data']['Assets'])} for token,digest,contents in rows]
+    return [{'token':token,'digest':digest,'format':payloads.loads(contents).get('format'),'assets':len(payloads.loads(contents)['data']['Assets'])} for token,digest,contents in rows]
 
 
 from functools import lru_cache
@@ -91,7 +91,7 @@ def list_import_history(store, limit=20):
     history=[]
     folder=Path(store.db_path).parent/'source-archives'
     for token,digest,raw in rows:
-        batch=json.loads(raw)
+        batch=payloads.loads(raw)
         summaries=batch.get('sheet_summary',[])
         unclassified=[{'sheet':sheet.get('name'),'rows':sheet.get('unclassified_rows',[])} for sheet in summaries if sheet.get('unclassified_rows')]
         source=folder/(digest+'.xlsx')

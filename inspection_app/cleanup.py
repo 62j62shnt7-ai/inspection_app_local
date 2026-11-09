@@ -1,4 +1,5 @@
 """Explicit, previewed removal of working data and separately managed copies."""
+from . import payloads
 from contextlib import closing
 from datetime import datetime, timezone
 import hashlib
@@ -62,10 +63,10 @@ def inventory(store):
         revision = conn.execute('SELECT value FROM version_clock WHERE id=1').fetchone()[0]
         items['assets'] = [{'id':a, 'label':name, 'version':version} for a,name,version in conn.execute('SELECT id,name,version FROM assets ORDER BY name,id')]
         for token,state,digest,raw in conn.execute('SELECT token,state,digest,contents FROM import_batches ORDER BY rowid DESC'):
-            batch = json.loads(raw)
+            batch = payloads.loads(raw)
             entry = {'id':token, 'label':f'{state} · {digest[:12]} · {len(batch.get("data",{}).get("Assets",[]))} proposed assets',
                      'digest':digest, 'dismissed':bool(batch.get('coverage_dismissed')), 'evidence_deleted':bool(batch.get('evidence_deleted')),
-                     'signature':hashlib.sha256(raw.encode()).hexdigest()}
+                     'signature':hashlib.sha256(payloads.decode_text(raw).encode()).hexdigest()}
             items['staged' if state=='staged' else 'imports'].append(entry)
         for snapshot_id,raw in conn.execute('SELECT snapshot_id,contents FROM master_snapshots ORDER BY rowid DESC'):
             snap = json.loads(raw)
@@ -74,7 +75,7 @@ def inventory(store):
             count = conn.execute('SELECT count(*) FROM '+table).fetchone()[0]
             if count: items[name].append({'id':table,'label':f'{table.replace("_"," ")} · {count} records','count':count})
         if conn.execute("SELECT 1 FROM sqlite_master WHERE name='import_reference'").fetchone():
-            items['references'] = [{'id':name,'label':name,'signature':hashlib.sha256(raw.encode()).hexdigest()} for name,raw in conn.execute('SELECT name,contents FROM import_reference ORDER BY name')]
+            items['references'] = [{'id':name,'label':name,'signature':hashlib.sha256(payloads.decode_text(raw).encode()).hexdigest()} for name,raw in conn.execute('SELECT name,contents FROM import_reference ORDER BY name')]
     folder = root/'source-archives'
     if folder.is_dir() and not folder.is_symlink():
         items['sources'] = [_file_item(p,p.stem) for p in sorted(folder.glob('*.xlsx')) if _SOURCE.fullmatch(p.name) and p.is_file() and not p.is_symlink()]
@@ -94,7 +95,7 @@ def _source_gaps(store):
     unavailable=set()
     with closing(sqlite3.connect(store.db_path)) as conn:
         for digest,raw in conn.execute("SELECT digest,contents FROM import_batches WHERE state IN ('committed','staged')"):
-            batch=json.loads(raw)
+            batch=payloads.loads(raw)
             if batch.get('evidence_deleted') or batch.get('source_archive_deleted'):continue
             path=folder/(digest+'.xlsx')
             try:
@@ -164,8 +165,8 @@ def set_coverage_dismissed(store, batch_id, dismissed):
     with closing(sqlite3.connect(store.db_path)) as conn, conn:
         row = conn.execute("SELECT contents FROM import_batches WHERE token=? AND state='committed'",(batch_id,)).fetchone()
         if not row: raise ValueError('Import history entry not found')
-        batch = json.loads(row[0]);batch['coverage_dismissed'] = dismissed
-        conn.execute('UPDATE import_batches SET contents=? WHERE token=?',(json.dumps(batch,ensure_ascii=False),batch_id))
+        batch = payloads.loads(row[0]);batch['coverage_dismissed'] = dismissed
+        conn.execute('UPDATE import_batches SET contents=? WHERE token=?',(payloads.dumps(batch,ensure_ascii=False),batch_id))
         next_revision(conn)
     return {'dismissed':dismissed}
 
@@ -199,6 +200,10 @@ def _mutate(conn, plan, revision):
     if category=='reset':
         for table in WORKING_TABLES: conn.execute('DELETE FROM '+table)
         conn.execute('DROP TABLE IF EXISTS import_reference')
+        # Excel previews contain complete business baselines; reset removes them
+        # and retires the prior workbook lineage with the working dataset.
+        for table in ('excel_previews','excel_created_rows','excel_new_ids','excel_exports','excel_identity'):
+            if conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",(table,)).fetchone():conn.execute('DELETE FROM '+table)
         settings = _settings(conn);settings['data_epoch'] = secrets.token_hex(16)
         settings.update(local_success=False,independent_success=False,error='Working data reset. Run Back up and test copy for the new dataset.')
         for key in ('day','local_path','local_at','independent_at','independent_path'): settings.pop(key,None)
@@ -223,9 +228,9 @@ def _mutate(conn, plan, revision):
                 # Keep the minimal dependency so deleting an archive cannot make
                 # retained assets silently pass the source-evidence check.
                 row = conn.execute('SELECT contents FROM import_batches WHERE token=?',(token,)).fetchone()
-                batch = json.loads(row[0])
+                batch = payloads.loads(row[0])
                 tombstone = {'format':batch.get('format'),'data':{'Assets':[]},'evidence_deleted':True,'coverage_dismissed':True}
-                conn.execute('UPDATE import_batches SET contents=? WHERE token=?',(json.dumps(tombstone),token))
+                conn.execute('UPDATE import_batches SET contents=? WHERE token=?',(payloads.dumps(tombstone),token))
             else:
                 conn.execute('DELETE FROM import_batch_assets WHERE token=?',(token,))
                 conn.execute('DELETE FROM import_batches WHERE token=?',(token,))
@@ -233,8 +238,8 @@ def _mutate(conn, plan, revision):
         removed = {row['filename'][:-5] for row in plan['files']}
         for token,digest,raw in conn.execute('SELECT token,digest,contents FROM import_batches').fetchall():
             if digest in removed:
-                batch = json.loads(raw);batch['source_archive_deleted'] = True
-                conn.execute('UPDATE import_batches SET contents=? WHERE token=?',(json.dumps(batch,ensure_ascii=False),token))
+                batch = payloads.loads(raw);batch['source_archive_deleted'] = True
+                conn.execute('UPDATE import_batches SET contents=? WHERE token=?',(payloads.dumps(batch,ensure_ascii=False),token))
 
 
 def _journal_path(store, token):

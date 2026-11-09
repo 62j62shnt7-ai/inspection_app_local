@@ -421,7 +421,7 @@ class HttpInProcessTests(unittest.TestCase):
         asset = self.store.save_asset(None, {'name':'Vessel','family':'Vessel','inspections':[{'inspection_type':'OSI','applicable':'Yes'}]}, None)
         _, page = self.request('GET', '/')
         token = re.search(rb'name="app-token" content="([^"]+)"', page).group(1).decode()
-        payload = json.dumps({'updates':[{'asset_id':asset['id'],'version':asset['version'],'inspection_type':'OSI','fields':{'next_inspection_month':'2027-03'}}]}).encode()
+        payload = json.dumps({'updates':[{'asset_id':asset['id'],'version':asset['version'],'inspection_type':'OSI','fields':{'next_inspection_month':'2027-03'},'source':{'completion_evidence':[{'column':'ut progress','value':'Done'}]}}]}).encode()
         self.assertEqual(self.request('POST','/api/reconciliation/apply',payload)[0],403)
         headers = {'X-App-Token':token,'Content-Type':'application/json'}
         self.assertEqual(self.request('POST','/api/reconciliation/apply',payload,headers)[0],200)
@@ -485,3 +485,52 @@ class HttpInProcessTests(unittest.TestCase):
         self.assertEqual(status,200)
         self.assertEqual(json.loads(body)['verified_asset_count'],1)
         self.assertEqual(self.request('POST','/api/verification/bulk/preview',json.dumps({'asset_ids':[asset['id']]}).encode(),{'Content-Type':'application/json'})[0],403)
+
+    def test_completed_ut_excel_reconciliation_updates_done_and_preserves_pending(self):
+        import io, re
+        from openpyxl import Workbook
+        from inspection_app.backups import restore_backup
+        before={}
+        for tag in ('UT-DONE','UT-PENDING'):
+            before[tag]=self.store.save_asset(None,{'name':tag,'family':'Vessel','tag_original':tag,'location_from':'Sample location','inspections':[{'inspection_type':'OSI','applicable':'Yes','last_inspection_month':'2020-01','next_inspection_month':'2026-01'}]},None)
+        book=Workbook();sheet=book.active;sheet.title='UT Results'
+        sheet.append(['Tag','Inspection type','Actual inspection date','Next due date','UT Progress'])
+        sheet.append(['UT-DONE','OSI','2026-09-14','2028-09','Done'])
+        sheet.append(['UT-PENDING','OSI','2026-10-05','2028-10','Pending'])
+        stream=io.BytesIO();book.save(stream);book.close()
+        _,page=self.request('GET','/')
+        token=re.search(rb'name="app-token" content="([^"]+)"',page).group(1).decode()
+        headers={'X-App-Token':token,'Content-Type':'application/json'}
+        status,body=self.request('POST','/api/reconciliation/preview',stream.getvalue(),{**headers,'Content-Type':'application/octet-stream'})
+        self.assertEqual(status,200,body)
+        rows=json.loads(body)['rows']
+        self.assertEqual([row['completion_status'] for row in rows],['done','not_done'])
+        updates=[]
+        for row in rows:
+            asset=before[row['identifier']]
+            self.assertEqual(row['candidates'][0]['id'],asset['id'])
+            self.assertEqual(self.store.get_asset(asset['id']),asset,'Preview must be read-only')
+            updates.append({'asset_id':asset['id'],'version':asset['version'],'inspection_type':'OSI','fields':{'last_inspection_month':row['last_month'],'next_inspection_month':row['next_month']},'source':{'workbook':'ut-results.xlsx','sheet':'UT Results','row':row['row'],'last_original':row['last_original'],'completion_evidence':row['completion_evidence']}})
+        # Even if a client submits Pending dates, the entire request is rejected.
+        status,body=self.request('POST','/api/reconciliation/apply',json.dumps({'updates':updates}).encode(),headers)
+        self.assertEqual(status,400,body)
+        self.assertIn('marked done',json.loads(body)['error'])
+        for asset in before.values():self.assertEqual(self.store.get_asset(asset['id']),asset)
+        # Apply the completed row, as selected by the browser batch preparation.
+        status,body=self.request('POST','/api/reconciliation/apply',json.dumps({'updates':updates[:1]}).encode(),headers)
+        self.assertEqual(status,200,body);applied=json.loads(body)
+        self.assertEqual(applied['updated'],1)
+        changed=self.store.get_asset(before['UT-DONE']['id'])
+        self.assertEqual(changed['inspections'][0]['last_inspection_month'],'2026-09')
+        self.assertEqual(changed['inspections'][0]['next_inspection_month'],'2028-09')
+        for field in ('id','name','tag_original','location_from'):self.assertEqual(changed[field],before['UT-DONE'][field])
+        self.assertEqual(self.store.get_asset(before['UT-PENDING']['id']),before['UT-PENDING'])
+        restored=Store(Path(self.tmp.name)/'restored.db')
+        restore_backup(restored,applied['backup'])
+        for asset in before.values():
+            self.assertEqual(restored.get_asset(asset['id'])['inspections'],asset['inspections'])
+        # Re-preview sees the same records and a repeated identical update is a no-op.
+        updates[0]['version']=changed['version']
+        status,body=self.request('POST','/api/reconciliation/apply',json.dumps({'updates':updates[:1]}).encode(),headers)
+        self.assertEqual(status,200,body);self.assertEqual(json.loads(body)['updated'],0)
+        self.assertEqual(self.store.get_asset(changed['id']),changed)

@@ -1,8 +1,9 @@
 """Build a portable Windows folder from an official embeddable runtime ZIP."""
 import argparse
+import hashlib
 from pathlib import Path, PurePosixPath
 import shutil
-from zipfile import ZipFile
+from zipfile import ZIP_DEFLATED, ZipFile
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -40,9 +41,31 @@ def build(runtime_zip, output):
     (output / 'data').mkdir(exist_ok=True)
     return output
 
+
+def create_zip(package_dir, zip_path, folder_name='Local Master Inspection Plan Windows'):
+    """Create a reproducible, self-contained ZIP without operational user data."""
+    package_dir = Path(package_dir)
+    zip_path = Path(zip_path)
+    zip_path.parent.mkdir(parents=True, exist_ok=True)
+    with ZipFile(zip_path, 'w', compression=ZIP_DEFLATED, compresslevel=6) as archive:
+        for path in sorted(package_dir.rglob('*')):
+            if not path.is_file() or any(part in {'__pycache__', '.DS_Store'} for part in path.parts):
+                continue
+            relative = path.relative_to(package_dir)
+            if relative.parts[0] == 'data':
+                continue
+            archive.write(path, (Path(folder_name) / relative).as_posix())
+    digest = hashlib.sha256(zip_path.read_bytes()).hexdigest()
+    zip_path.with_suffix(zip_path.suffix + '.sha256').write_text(
+        f'{digest}  {zip_path.name}\n', encoding='ascii')
+    return zip_path
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--runtime-zip', required=True, type=Path)
     parser.add_argument('--output', required=True, type=Path)
+    parser.add_argument('--zip', type=Path, help='Optional path for a distributable ZIP')
     args = parser.parse_args()
-    build(args.runtime_zip, args.output)
+    package = build(args.runtime_zip, args.output)
+    if args.zip:
+        create_zip(package, args.zip)

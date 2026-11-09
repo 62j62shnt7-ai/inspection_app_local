@@ -1,4 +1,5 @@
 """Portable checksummed recovery packages and independent backup status."""
+from . import payloads
 from contextlib import closing
 from datetime import datetime, date, timezone
 from pathlib import Path
@@ -79,7 +80,7 @@ def export_master_package(store,destination,allow_missing_sources=False):
         relocations={}
         with closing(sqlite3.connect(database)) as conn:
             has_batches=conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='import_batches'").fetchone()
-            required={digest for digest,raw in conn.execute("SELECT digest,contents FROM import_batches WHERE state IN ('committed','staged')") if not any(json.loads(raw).get(key) for key in ('evidence_deleted','source_archive_deleted'))} if has_batches else set()
+            required={digest for digest,raw in conn.execute("SELECT digest,contents FROM import_batches WHERE state IN ('committed','staged')") if not any(payloads.loads(raw).get(key) for key in ('evidence_deleted','source_archive_deleted'))} if has_batches else set()
         for digest in required:
             archive=Path(store.db_path).parent/'source-archives'/(digest+'.xlsx')
             if not archive.is_file():
@@ -140,10 +141,11 @@ def validate_restore_package(path):
             with tempfile.TemporaryDirectory() as tmp:
                 database=Path(tmp)/'master.db';database.write_bytes(package.read('master.db'))
                 with closing(sqlite3.connect(database)) as conn:
+                    payloads.validate_payloads(conn)
                     has_batches=conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='import_batches'").fetchone()
                     if has_batches:
                         for digest,raw in conn.execute("SELECT digest,contents FROM import_batches WHERE state IN ('committed','staged')"):
-                            if not any(json.loads(raw).get(key) for key in ('evidence_deleted','source_archive_deleted')) and digest not in unavailable and 'source-archives/'+digest+'.xlsx' not in manifest['files']:raise ValueError('Required source archive is missing from recovery package')
+                            if not any(payloads.loads(raw).get(key) for key in ('evidence_deleted','source_archive_deleted')) and digest not in unavailable and 'source-archives/'+digest+'.xlsx' not in manifest['files']:raise ValueError('Required source archive is missing from recovery package')
             return manifest
     except (BadZipFile,KeyError,TypeError,json.JSONDecodeError) as exc:
         raise ValueError('Invalid recovery package') from exc

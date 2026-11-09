@@ -1,4 +1,5 @@
 """Explicit duplicate consolidation; aliases retain retired permanent identities."""
+from . import payloads
 from contextlib import closing
 import copy
 import json
@@ -82,12 +83,12 @@ def apply_consolidation(store,preview_id,expected_revision,choices,evidence):
         has_ref=conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='import_reference'").fetchone()
         if has_ref:
             for name,raw in conn.execute('SELECT name,contents FROM import_reference').fetchall():
-                rows=json.loads(raw)
+                rows=payloads.loads(raw)
                 for item in rows:
                     if item.get('asset_id')==duplicate['id']:
                         if name=='Source Cells' and not item.get('historical_asset_id'):
                             item['historical_asset_id']=duplicate['id']
                         item['asset_id']=survivor['id']
-                conn.execute('UPDATE import_reference SET contents=? WHERE name=?',(json.dumps(rows,ensure_ascii=False),name))
+                conn.execute('UPDATE import_reference SET contents=? WHERE name=?',(payloads.dumps(rows,ensure_ascii=False),name))
         conn.execute('DELETE FROM consolidation_previews WHERE preview_id=?',(preview_id,))
     return {'survivor_id':survivor['id'],'retired_id':duplicate['id'],'revision':revision,'backup':backup['local_path']}

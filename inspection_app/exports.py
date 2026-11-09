@@ -1,4 +1,5 @@
 """Loss-preserving export of the current plan to the linked workbook format."""
+from . import payloads
 from contextlib import closing
 import json
 import sqlite3
@@ -51,7 +52,7 @@ def export_workbook(store, path):
             row={key:value.get(key) for key in columns}
             unique[json.dumps(row,sort_keys=True,default=str,ensure_ascii=False)]=row
         return list(unique.values())
-    source_rows=[normalize_reference(row) for row in tables['Source Cells']+json.loads(refs.get('Source Cells','[]'))]
+    source_rows=[normalize_reference(row) for row in tables['Source Cells']+payloads.loads(refs.get('Source Cells','[]'))]
     tables['Source Cells']=unique_rows('Source Cells',source_rows)
     attached=list(tables['Review Items'])
     review_fields=[field for field in HEADERS['Review Items'].split() if field!='review_id']
@@ -60,7 +61,7 @@ def export_workbook(store, path):
     attached_ids={(row.get('asset_id'),row['review_id']) for row in attached if row.get('review_id')}
     attached_evidence={review_evidence(row) for row in attached}
     attached_without_id={review_evidence(row) for row in attached if not row.get('review_id')}
-    for retained in json.loads(refs.get('Review Items','[]')):
+    for retained in payloads.loads(refs.get('Review Items','[]')):
         retained=dict(retained)
         original=retained.get('asset_id')
         if original and original not in live_ids:
@@ -74,8 +75,8 @@ def export_workbook(store, path):
     for row in tables['Review Items']:
         if row.get('asset_id') in live_ids and not row.get('review_id'):
             row['review_id']=str(uuid.uuid4())
-    tables['Field Map'] = json.loads(refs.get('Field Map', '[]'))
-    if DECISION_SHEET in refs: tables[DECISION_SHEET] = json.loads(refs[DECISION_SHEET])
+    tables['Field Map'] = payloads.loads(refs.get('Field Map', '[]'))
+    if DECISION_SHEET in refs: tables[DECISION_SHEET] = payloads.loads(refs[DECISION_SHEET])
     book = Workbook(write_only=True)
     continuations = []
     for name in tables:

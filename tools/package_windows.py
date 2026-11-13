@@ -34,9 +34,10 @@ def build(runtime_zip, output):
         raise ValueError('Bundled openpyxl and et_xmlfile packages are missing')
     for name in ('openpyxl', 'et_xmlfile'):
         shutil.copytree(vendor / name, packages / name, dirs_exist_ok=True, ignore=shutil.ignore_patterns('__pycache__', '*.pyc'))
+    (runtime / '.embedded-runtime').write_text('Python embeddable runtime\n', encoding='ascii')
     for name in ('inspection_app', 'static', 'reference', 'tests', 'tools'):
         shutil.copytree(ROOT / name, output / name, dirs_exist_ok=True, ignore=shutil.ignore_patterns('__pycache__', '*.pyc', '.DS_Store'))
-    for name in ('app.py', 'Start Inspection App.bat', 'README.md'):
+    for name in ('app.py', 'Start Inspection App.bat', 'README.md', 'requirements-windows.txt'):
         if (ROOT / name).exists(): shutil.copy2(ROOT / name, output / name)
     (output / 'data').mkdir(exist_ok=True)
     return output

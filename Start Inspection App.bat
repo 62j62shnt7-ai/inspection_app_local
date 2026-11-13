@@ -6,8 +6,24 @@ if errorlevel 1 (
   pause
   exit /b 1
 )
+if not exist "%~dp0runtime\windows\.embedded-runtime" goto setup_runtime
+if not exist "%~dp0runtime\windows\python.exe" goto setup_runtime
+if not exist "%~dp0runtime\windows\Lib\site-packages\openpyxl" goto setup_runtime
+if not exist "%~dp0runtime\windows\Lib\site-packages\et_xmlfile" goto setup_runtime
+goto start_app
+
+:setup_runtime
+  echo The Windows runtime or a spreadsheet dependency is missing. Setting it up...
+  powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0tools\bootstrap_windows.ps1"
+  if errorlevel 1 (
+    echo First-run setup failed. Check the message above and try again.
+    pause
+    exit /b 1
+  )
+
+:start_app
 if not exist "%~dp0runtime\windows\python.exe" (
-  echo The bundled Windows runtime is missing. Please extract the complete app folder.
+  echo Setup finished without creating the Windows Python runtime.
   pause
   exit /b 1
 )

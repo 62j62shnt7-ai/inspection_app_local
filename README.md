@@ -14,7 +14,7 @@ On first use, open **Data & backups**, choose `reference/Master_Inspection_Plan_
 
 ## Windows
 
-Extract the complete folder to a writable location and double-click `Start Inspection App.bat`. It uses the bundled 64-bit Python 3.11 runtime and packages; Python installation and administrator rights are not required. Import the workbook in `reference/` on first use. Use Edge, Chrome, or Firefox; Internet Explorer is not supported. Native Windows execution still needs verification.
+Extract the complete folder to a writable location and double-click `Start Inspection App.bat`. If its local runtime is missing, the launcher downloads the official Python 3.14.10 64-bit embeddable ZIP, verifies its SHA-256 checksum, and places Python plus the app's verified spreadsheet wheels inside the app folder. It does not run a Python installer, change the system Python, or require administrator rights. First setup needs network access to python.org and files.pythonhosted.org; later starts reuse the local runtime, and prebuilt Windows ZIP packages can start offline. Import the workbook in `reference/` on first use. Use Edge, Chrome, or Firefox; Internet Explorer is not supported. Native Windows execution still needs verification.
 
 If you already have a database from an earlier version, **keep your existing `data/` folder**. Replace only the application files and runtime; do not overwrite that folder. Make a separate backup before updating.
 
